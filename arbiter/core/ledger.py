@@ -64,6 +64,22 @@ CORRELATION_DECAY: float = 0.55
 #: with human-supplied exhibits can support.
 MAX_EVIDENCE_LOGODDS: float = 5.3
 
+#: How strongly NLI net-support modulates the type prior. At 0.8 a fully entailed,
+#: fully committed exhibit is worth ~1.8x its type prior, and a weakly supported one
+#: shrinks toward zero. Kept below 1.0 so the layer adjusts rather than dominates.
+NLI_SUPPORT_GAIN: float = 0.8
+
+#: Contradiction probability required before an exhibit is treated as self-defeating
+#: and its sign flipped. Set high because flipping an exhibit against the party who
+#: filed it is a strong claim, and MNLI models emit low-confidence contradictions
+#: readily on terse documentary text.
+NLI_CONTRADICTION_FLOOR: float = 0.45
+
+#: Magnitude assigned to a contradicted exhibit, in nats. Comparable to a strong type
+#: prior, so a self-defeating document counts against its filer about as much as a
+#: solid one would have counted for them.
+NLI_MAX_SWING: float = 1.4
+
 
 #: Exhibit types that attest substantially the same underlying fact. Exhibits sharing
 #: a group *and* a filing party are treated as correlated and damped.
@@ -276,12 +292,27 @@ def compute_lambda(evidence: Evidence) -> float:
 
     Resolution order:
 
-    1. `metadata['lambda_lr']` — set by the Stage 4 NLI verifier, which derives it
-       from entailment versus contradiction probabilities. This is the intended path
-       in the full pipeline.
-    2. `metadata['entail'] / ['contradict']` — raw NLI probabilities, converted here.
-    3. Falls back to the exhibit type's default polarity, scaled to a modest
-       magnitude. Type alone is weak information, so the fallback stays small.
+    1. `metadata['lambda_lr']` — an exact, computed value (visual similarity,
+       duplicate matching). Trusted outright.
+    2. `metadata['entail'] / ['contradict']` — NLI probabilities, used to *modulate*
+       the type prior rather than replace it. See below.
+    3. The exhibit type's default polarity alone.
+
+    **Why NLI modulates rather than replaces.** Measured on 800 cases, letting the
+    entail/contradict ratio stand as lambda dropped ledger agreement from 88.8% to
+    77.8% with a real DeBERTa-MNLI model — worse than using no NLI at all. The cause
+    was visible in the label distribution: 2376 of 2888 exhibits scored *neutral*.
+
+    That is the model behaving correctly. A terse record like "Delivery confirmation.
+    Delivered 09 Mar." genuinely does not *entail* "the cardholder received the
+    goods" — entailment is a strict relation, and a document stub rarely satisfies
+    it. But neutral still yields log(0.15/0.03) ~ +1.6 nats, so every unremarkable
+    exhibit was injecting a confident-looking value derived from nothing.
+
+    So the type prior stays the backbone — it encodes what an exhibit *is* — and NLI
+    supplies a signed adjustment for what the exhibit *says*. Contradiction can still
+    flip the sign outright, which is the property that makes the layer worth having:
+    a delivery confirmation naming the wrong address should help the Card Member.
     """
     meta = evidence.metadata
 
@@ -289,16 +320,28 @@ def compute_lambda(evidence: Evidence) -> float:
     if explicit is not None:
         return float(explicit)
 
-    entail, contradict = meta.get("entail"), meta.get("contradict")
-    if entail is not None and contradict is not None:
-        eps = 1e-6
-        # The hypothesis is always phrased in the *filer's* favour, so entailment
-        # supports whoever filed the exhibit.
-        support = math.log((float(entail) + eps) / (float(contradict) + eps))
-        return support if evidence.party is Party.CARD_MEMBER else -support
+    prior = evidence_polarity(evidence.etype) * 1.2
 
-    # Type-level prior: polarity in [-1,1] scaled into a believable LR range.
-    return evidence_polarity(evidence.etype) * 1.2
+    entail, contradict = meta.get("entail"), meta.get("contradict")
+    if entail is None or contradict is None:
+        return prior
+
+    e, c = float(entail), float(contradict)
+
+    # Net support in [-1, 1] for the hypothesis, which is always phrased in the
+    # filer's favour. Neutral mass is excluded from the numerator, so an exhibit the
+    # model cannot resolve contributes nothing rather than a spurious positive.
+    net = (e - c) / max(e + c, 1e-6)
+    decisive = e + c  # how much probability mass the model committed at all
+
+    # Contradiction overrides the type prior: the exhibit undermines its own purpose.
+    if c > e and c >= NLI_CONTRADICTION_FLOOR:
+        magnitude = min(1.0, (c - e)) * NLI_MAX_SWING
+        return -math.copysign(magnitude, prior) if prior else -magnitude
+
+    # Otherwise scale the prior by the model's net support. `decisive` keeps
+    # low-commitment (mostly-neutral) judgements close to the prior.
+    return prior * (1.0 + NLI_SUPPORT_GAIN * net * decisive)
 
 
 def build_entry(

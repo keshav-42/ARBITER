@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 3 complete (`7cf8876`).
+Last updated: Stage 4 complete.
 
 ---
 
@@ -73,8 +73,13 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `388b6c5` | chore — ignore `.claude/` |
 | `4d0d496` | Stage 2 — Bayesian Evidence Ledger, reputation, verdict narration |
 | `7cf8876` | Stage 3 — synthetic corpus generator, and five engine bugs it exposed |
+| `35caedf` | docs — CONTEXT.md and LOGIC.md |
+| (Stage 4) | NLI evidence verifier + reason-code classifier |
 
-**121 tests passing.** Run: `python -m pytest tests/ -q`
+**172 tests passing.** Run: `python -m pytest tests/ -q`
+
+All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
+downloads weights during a test run.
 
 ---
 
@@ -94,12 +99,16 @@ arbiter/
     generator.py      world facts -> noisy evidence bundles
     narratives.py     realistic Card Member / Merchant text
     build_corpus.py   CLI: build + score against ground truth
-tests/                121 tests
+  nlp/
+    hypotheses.py     what each exhibit is offered to prove, per (code, type)
+    verifier.py       NLI backends: offline stub + DeBERTa MNLI
+    classifier.py     reason-code classification from free text
+tests/                172 tests, all offline
 docs/                 initial proposal, Amex design system spec
 ```
 
-Nothing exists yet under `backend/`, `frontend/`, `arbiter/nlp/`,
-`arbiter/calibration/`, `arbiter/settlement/`, or `arbiter/eval/`.
+Nothing exists yet under `backend/`, `frontend/`, `arbiter/calibration/`,
+`arbiter/settlement/`, or `arbiter/eval/`.
 
 ---
 
@@ -116,51 +125,44 @@ worst reason code C32 at 71%          (was 19% before Stage 3 fixes)
 ambiguous abstention  ~31%            (deliberately untuned — see below)
 ```
 
+Stage 4 NLP layer:
+
+```
+reason-code classifier   93.6% top-1, 97.1% top-3   (keyword/weak supervision)
+ledger with stub NLI     87.6%   (baseline 87.3%)
+ledger with real MNLI    87.2%   at parity, +23 self-defeating exhibits caught
+
+on misleading-record scenarios only, real model vs baseline:  82.2% -> 92.8%
+    C08.lost_in_transit   64.4% -> 100.0%
+    C08.wrong_address     89.2% ->  95.0%
+```
+
 Corpus distribution: 51% card-member-right, 34% merchant-right, 15% ambiguous. C08 is
 the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 4
+## Where to pick up: Stage 5
 
-**The NLI evidence verifier.** This is the keystone model decision and the plumbing is
-already in place.
+**Conformal calibration and abstention routing.** This replaces the hand-picked
+`CONTESTED_BAND = 0.85` with a split-conformal threshold carrying a distribution-free
+coverage guarantee.
 
-`arbiter/core/ledger.py::compute_lambda` resolves the likelihood ratio in this order:
+The groundwork is done: a band sweep (see LOGIC.md §9) shows the posterior already
+ranks uncertainty correctly, so Stage 5 only has to pick the operating point on that
+curve. Do **not** hand-tune the band against the corpus.
 
-1. `metadata["lambda_lr"]` — explicit
-2. `metadata["entail"]` / `metadata["contradict"]` — **the NLI path, already wired**
-3. exhibit-type polarity — weak fallback
+The claim this unlocks: *"we auto-resolve X% of disputes at a guaranteed 1−α coverage,
+and escalate the rest by design"* — far stronger than a bare accuracy number.
 
-So Stage 4 only has to populate `entail` / `contradict` and the ledger consumes it
-unchanged.
-
-**The idea.** Frame every evidence check as natural-language inference:
-
-```
-premise    = the merchant's carrier record
-hypothesis = "the goods were delivered to the cardholder's address"
-        ->  P(entail), P(neutral), P(contradict)
-        ->  lambda_i = log( P(entail) / P(contradict) )
-```
-
-Entailment supports whoever filed the exhibit, so the sign flips for merchant-filed
-evidence. `compute_lambda` already does this.
-
-**Model:** `MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli` (zero-shot on day one).
-Reason-code classification: DeBERTa-v3-base or `nlpaueb/legal-bert-base-uncased`.
-
-**Build notes.**
-- Keep it behind an interface with a deterministic stub, so tests never download weights
-  and the demo runs offline. The existing 121 tests must not become network-dependent.
-- Hypotheses should be templated per `(reason_code, evidence_type)`.
-- Batch on GPU; cache by content hash.
+**Model download note.** The environment sets `HF_HUB_ENABLE_HF_TRANSFER=1` but
+`hf_transfer` is not installed, so downloads fail. Set `$env:HF_HUB_ENABLE_HF_TRANSFER="0"`
+first. `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli` is already cached locally.
 
 ### Remaining stages
 
 | # | Stage | Notes |
 |---|---|---|
-| 4 | NLI verifier + reason-code classifier | in progress |
 | 5 | Conformal calibration + abstention | replaces `CONTESTED_BAND` heuristic |
 | 6 | Nash settlement + counterfactual recourse | |
 | 7 | FastAPI + SQLAlchemy + append-only event log | |

@@ -14,6 +14,7 @@ perspective" and "explains the basis for each dispute decision."
 The obvious build is a classifier: features in, winner out, SHAP plot bolted on. That
 fails the brief in three specific ways.
 
+
 1. **It cannot state a burden of proof.** Chargeback law is not symmetric. Under C08 the
    merchant must prove delivery; under C31 the card member must prove misdescription. A
    classifier learns this only as a correlation, and cannot cite it.
@@ -250,6 +251,54 @@ dispute"), not **about merchants** ("the sofa never arrived"), and they carry no
 ground-truth verdict. ARBITER needs `(evidence bundle → who should win)`, which does not
 exist publicly and must be constructed. CFPB remains useful for *domain-adaptive
 pretraining* — learning how consumers phrase financial grievances — but not for labels.
+
+---
+
+## 8b. Why NLI modulates the type prior instead of replacing it
+
+The obvious wiring is `lambda = log(P(entail) / P(contradict))`. Measured on 800 cases
+with a real DeBERTa-MNLI model, that **made the ledger worse**: 88.8% → 77.8%, worse
+than using no NLI at all.
+
+The cause was in the label distribution: **2,376 of 2,888 exhibits scored *neutral*.**
+
+That is the model behaving correctly. A terse record like *"Delivery confirmation.
+Delivered 09 Mar."* genuinely does not **entail** "the cardholder received the goods" —
+entailment is a strict relation, and a document stub rarely satisfies it. But neutral
+still yields `log(0.15/0.03) ≈ +1.6` nats, so every unremarkable exhibit was injecting a
+confident-looking number derived from nothing, overwriting a calibrated type prior.
+
+So `compute_lambda` keeps the type prior as the backbone — it encodes what an exhibit
+**is** — and NLI supplies a signed adjustment for what the exhibit **says**:
+
+- neutral mass is excluded from the numerator, so an unresolvable exhibit contributes
+  nothing rather than a spurious positive
+- contradiction above `NLI_CONTRADICTION_FLOOR` flips the sign outright, which is the
+  property that makes the layer worth having
+
+**Where the value actually shows up.** Aggregate accuracy hides it, because most
+exhibits are unremarkable. Measured on scenarios where the record is misleading on its
+face — merchant-favouring exhibit *types* carrying card-member-favouring *content* —
+the real model beats baseline 82.2% → 92.8%:
+
+| scenario | baseline | with NLI |
+|---|---|---|
+| `C08.lost_in_transit` | 64.4% | **100.0%** |
+| `C08.wrong_address` | 89.2% | **95.0%** |
+| `C08.partial_shipment` | 92.1% | 94.7% |
+
+The stub backend *underperforms* baseline on the address and partial cases. That is
+left visible rather than papered over: **the stub is a test fixture, not a substitute
+for the model.** Any claim about NLI's value must be measured with the real backend.
+
+### A related trap: premise boilerplate
+
+`_premise()` originally appended *"This record could not be independently verified"* to
+every unverified exhibit. Two things went wrong: provenance is already applied as
+`effective_quality`, so restating it double-counted it; and the lexical stub's negation
+cues fired on the boilerplate itself, scoring 4 exhibits in 5 as contradictions.
+
+**Premises should describe what the exhibit says, never how much it is trusted.**
 
 ---
 
