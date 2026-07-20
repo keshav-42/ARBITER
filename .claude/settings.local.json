@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(cd \"c:\\\\Users\\\\MVI\\\\Desktop\\\\amex\"; $env:PYTHONPATH=\"c:\\\\Users\\\\MVI\\\\Desktop\\\\amex\"; python \"C:\\\\Users\\\\MVI\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-MVI-Desktop-amex\\\\85118433-f472-4885-8856-acce9917e2a0\\\\scratchpad\\\\show_registry.py\")"
-    ]
-  }
-}
