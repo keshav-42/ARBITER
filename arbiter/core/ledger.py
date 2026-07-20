@@ -384,7 +384,10 @@ class DisputeCase:
     merchant_response_days: int | None = None
     return_shipped_day: int | None = None
     return_window_days: int | None = None
+    cancel_day: int | None = None
+    cancel_window_days: int | None = None
     days_since_transaction: int | None = None
+    submission_delay_days: int | None = None
     duplicate_confirmed: bool = False
     refund_already_posted: bool = False
 
@@ -395,7 +398,10 @@ class DisputeCase:
             merchant_response_days=self.merchant_response_days,
             return_shipped_day=self.return_shipped_day,
             return_window_days=self.return_window_days,
+            cancel_day=self.cancel_day,
+            cancel_window_days=self.cancel_window_days,
             days_since_transaction=self.days_since_transaction,
+            submission_delay_days=self.submission_delay_days,
             duplicate_confirmed=self.duplicate_confirmed,
             refund_already_posted=self.refund_already_posted,
         )

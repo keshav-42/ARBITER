@@ -96,9 +96,34 @@ def test_lambda_falls_back_to_type_polarity():
 
 
 def test_empty_case_posterior_equals_prior_when_no_rules_fire():
-    """C31 with no evidence: prior only, since no C31 rule fires on an empty record."""
+    """With every rule inert, the posterior is the burden-of-proof prior alone.
+
+    C31 no longer qualifies: since Stage 3 an empty record trips BURDEN.CM_UNMET,
+    because failing to substantiate your own claim is itself evidence. C08 with
+    verified delivery leaves no rule firing, so it isolates the prior.
+    """
+    case = DisputeCase(
+        reason_code=ReasonCode.C08,
+        evidence=[
+            Evidence(
+                etype=EvidenceType.DELIVERY_CONFIRMATION,
+                party=Party.MERCHANT,
+                verified=True,
+                quality=0.9,
+                metadata={"lambda_lr": 0.0, "address_match": True},
+            )
+        ],
+    )
+    adj = adjudicate(case)
+    assert not adj.findings
+    assert adj.posterior_logodds == pytest.approx(get_spec(ReasonCode.C08).prior_logodds)
+
+
+def test_unmet_card_member_burden_moves_an_empty_c31_record():
+    """The Stage 3 fix: absence of required evidence is not neutral."""
     adj = adjudicate(DisputeCase(reason_code=ReasonCode.C31))
-    assert adj.posterior_logodds == pytest.approx(get_spec(ReasonCode.C31).prior_logodds)
+    assert adj.posterior_logodds < get_spec(ReasonCode.C31).prior_logodds
+    assert any(f.rule_id == "BURDEN.CM_UNMET" for f in adj.findings)
 
 
 def test_audit_sum_reproduces_posterior():

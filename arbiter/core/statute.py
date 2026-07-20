@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from arbiter.core.evidence import Evidence, EvidenceType, Party
-from arbiter.core.reason_codes import ReasonCode, ReasonCodeSpec
+from arbiter.core.reason_codes import BurdenOfProof, ReasonCode, ReasonCodeSpec
 
 #: Log-odds magnitude representing a decided case. Finite so downstream arithmetic
 #: (sigmoid, settlement) stays numerically well behaved, but far beyond any
@@ -74,8 +74,16 @@ class StatuteContext:
     return_shipped_day: int | None = None
     #: The merchant's stated return window, in days.
     return_window_days: int | None = None
+    #: Day the Card Member requested cancellation, relative to the order.
+    cancel_day: int | None = None
+    #: The merchant's stated cancellation window, in days.
+    cancel_window_days: int | None = None
     #: Days between the transaction and the dispute being filed.
     days_since_transaction: int | None = None
+    #: Days between authorisation and the merchant submitting the charge for
+    #: settlement. Distinct from `days_since_transaction`, which measures the Card
+    #: Member's filing delay — conflating the two inverts P07.
+    submission_delay_days: int | None = None
     #: Whether the ledger shows a second charge matching amount + merchant + window.
     duplicate_confirmed: bool = False
     #: Whether a refund for the disputed amount is already posted.
@@ -157,6 +165,117 @@ def refund_already_posted(ctx: StatuteContext) -> RuleFinding | None:
         ),
         guide_reference="Chargeback Code Guide — credit already processed",
         logodds_delta=-DISPOSITIVE_LOGODDS,
+    )
+
+
+#: Exhibits that turn a bare assertion into a substantiated allegation. A narrative is
+#: excluded on purpose — anyone can write one, so it cannot shift a burden by itself.
+_SUBSTANTIATING: frozenset[EvidenceType] = frozenset(
+    {
+        EvidenceType.EMAIL_THREAD,
+        EvidenceType.CHAT_LOG,
+        EvidenceType.RETURN_TRACKING,
+        EvidenceType.RETURN_RECEIPT,
+        EvidenceType.CANCELLATION_REQUEST,
+        EvidenceType.BANK_STATEMENT,
+        EvidenceType.ORDER_CONFIRMATION,
+        EvidenceType.RECEIPT,
+        EvidenceType.PHOTO_OF_ITEM,
+        EvidenceType.DUPLICATE_TXN_MATCH,
+    }
+)
+
+
+def _cm_claim_substantiated(ctx: StatuteContext) -> bool:
+    """Whether the Card Member offered anything beyond their own account.
+
+    Structured facts count too: a confirmed duplicate in the authorisation ledger
+    substantiates a P08 claim even if the Card Member filed no documents.
+    """
+    if ctx.duplicate_confirmed:
+        return True
+    return any(
+        e.etype in _SUBSTANTIATING
+        for e in ctx.from_party(Party.CARD_MEMBER)
+    )
+
+
+@rule
+def unmet_card_member_burden(ctx: StatuteContext) -> RuleFinding | None:
+    """A Card Member who files none of the evidence their own claim requires loses ground.
+
+    This is the other half of the burden of proof, and omitting it was a real modelling
+    error: without it, absence of evidence read as neutral. A claim that a return was
+    shipped, a cancellation was requested, or a second charge exists produces *no*
+    exhibit when the underlying event never happened — so nothing pushed toward the
+    merchant and the prior sat unopposed.
+
+    Under a Card-Member-burden code, failing to produce the substantiating exhibit is
+    itself evidence. Deliberately STRONG rather than dispositive: evidence can be lost,
+    and a merchant's own records may still corroborate the claim.
+    """
+    if ctx.spec.burden is not BurdenOfProof.CARD_MEMBER:
+        return None
+    required = ctx.spec.required_cm_evidence
+    if not required:
+        return None
+    # A narrative alone never discharges a burden — anyone can assert anything.
+    substantive = tuple(t for t in required if t is not EvidenceType.CM_NARRATIVE)
+    if not substantive or ctx.has_any(substantive):
+        return None
+    missing = ", ".join(t.value.replace("_", " ") for t in substantive)
+    return RuleFinding(
+        rule_id="BURDEN.CM_UNMET",
+        force=RuleForce.STRONG,
+        favours=Party.MERCHANT,
+        rationale=(
+            f"Under AMEX Code {ctx.spec.code.value} the Card Member must substantiate "
+            f"the claim, but filed none of the required evidence ({missing})."
+        ),
+        guide_reference=f"Chargeback Code Guide — {ctx.spec.code.value} evidence requirements",
+        logodds_delta=-STRONG_LOGODDS,
+    )
+
+
+@rule
+def unmet_merchant_burden(ctx: StatuteContext) -> RuleFinding | None:
+    """A responsive merchant who files nothing substantive fails their burden.
+
+    Complements `merchant_no_reply`, which handles silence. This covers the merchant
+    who replies on time but produces no records. C08 has its own dispositive rule, so
+    it is excluded here to avoid double-counting.
+    """
+    if ctx.spec.burden is not BurdenOfProof.MERCHANT:
+        return None
+    if ctx.spec.code is ReasonCode.C08:
+        return None
+    required = ctx.spec.required_merchant_evidence
+    if not required or ctx.has_any(required):
+        return None
+    # Only applies once the merchant has actually engaged; silence is handled elsewhere.
+    if ctx.merchant_response_days is None:
+        return None
+    if ctx.merchant_response_days > ctx.spec.representment_window_days:
+        return None
+
+    # A merchant cannot document an event that never occurred. Where the Card Member
+    # alleges something the merchant did — promised a credit, billed twice — the claim
+    # must carry some substantiation before the merchant's silence counts against them.
+    # Without this guard the rule punished merchants for being correct: in
+    # "no refund was ever agreed" there is simply no credit note to produce.
+    if not _cm_claim_substantiated(ctx):
+        return None
+    missing = ", ".join(t.value.replace("_", " ") for t in required)
+    return RuleFinding(
+        rule_id="BURDEN.MERCHANT_UNMET",
+        force=RuleForce.STRONG,
+        favours=Party.CARD_MEMBER,
+        rationale=(
+            f"Under AMEX Code {ctx.spec.code.value} the Merchant must substantiate the "
+            f"charge, but produced none of the required records ({missing})."
+        ),
+        guide_reference=f"Chargeback Code Guide — {ctx.spec.code.value} evidence requirements",
+        logodds_delta=STRONG_LOGODDS,
     )
 
 
@@ -295,6 +414,31 @@ def return_within_window_unrefunded(ctx: StatuteContext) -> RuleFinding | None:
 
 
 @rule
+def cancellation_outside_window(ctx: StatuteContext) -> RuleFinding | None:
+    """A cancellation requested after the order shipped comes too late.
+
+    Parallel to `return_outside_window`, but for C05/C18: once fulfilment has begun
+    the merchant has already incurred the cost.
+    """
+    if ctx.spec.code not in (ReasonCode.C05, ReasonCode.C18):
+        return None
+    day, window = ctx.cancel_day, ctx.cancel_window_days
+    if day is None or window is None or day <= window:
+        return None
+    return RuleFinding(
+        rule_id="POLICY.CANCEL_LATE",
+        force=RuleForce.STRONG,
+        favours=Party.MERCHANT,
+        rationale=(
+            f"Cancellation was requested on day {day}, after the merchant's "
+            f"{window}-day cancellation window had closed."
+        ),
+        guide_reference="Merchant cancellation policy — published window",
+        logodds_delta=-STRONG_LOGODDS,
+    )
+
+
+@rule
 def filed_outside_dispute_window(ctx: StatuteContext) -> RuleFinding | None:
     """Claims filed long after the transaction fall outside the guide's filing window."""
     days = ctx.days_since_transaction
@@ -316,6 +460,33 @@ def filed_outside_dispute_window(ctx: StatuteContext) -> RuleFinding | None:
 # --------------------------------------------------------------------------------------
 # Ledger-fact rules — duplicates and authorisation.
 # --------------------------------------------------------------------------------------
+
+
+@rule
+def late_settlement_submission(ctx: StatuteContext) -> RuleFinding | None:
+    """A charge submitted long after authorisation is a P07 processing violation.
+
+    Note this measures the *merchant's* settlement delay, which is the opposite
+    direction from `filed_outside_dispute_window` — that one measures how long the
+    Card Member waited to complain. Both are "late", and confusing them inverts the
+    verdict, so they read separate fields.
+    """
+    if ctx.spec.code is not ReasonCode.P07:
+        return None
+    delay = ctx.submission_delay_days
+    if delay is None or delay <= 30:
+        return None
+    return RuleFinding(
+        rule_id="P07.LATE_SUBMISSION",
+        force=RuleForce.DISPOSITIVE if delay > 60 else RuleForce.STRONG,
+        favours=Party.CARD_MEMBER,
+        rationale=(
+            f"The Merchant submitted the charge for settlement {delay} days after "
+            "authorisation, outside the permitted submission window."
+        ),
+        guide_reference="Chargeback Code Guide — P07 Late Submission",
+        logodds_delta=DISPOSITIVE_LOGODDS if delay > 60 else STRONG_LOGODDS,
+    )
 
 
 @rule
