@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Data / models / artifacts
+*.db
+*.sqlite
+*.sqlite3
+data/generated/
+data/blobs/
+models/checkpoints/
+*.pt
+*.bin
+*.safetensors
+.cache/
+runs/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+token.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
