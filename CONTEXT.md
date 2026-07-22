@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 6 complete.
+Last updated: Stage 7 complete.
 
 ---
 
@@ -76,9 +76,10 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `35caedf` | docs — CONTEXT.md and LOGIC.md |
 | `ba98bdf` | Stage 4 — NLI evidence verifier + reason-code classifier |
 | `4c0f92e` | Stage 5 — conformal abstention, temperature scaling, routing |
-| (Stage 6) | Nash settlement + counterfactual recourse |
+| `f08a8c8` | Stage 6 — Nash settlement + counterfactual recourse |
+| (Stage 7) | FastAPI backend, SQLAlchemy schema, append-only event log |
 
-**241 tests passing.** Run: `python -m pytest tests/ -q`
+**262 tests passing.** Run: `python -m pytest tests/ -q`
 
 All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
 downloads weights during a test run.
@@ -112,12 +113,18 @@ arbiter/
   settlement/
     nash.py           Nash bargaining split of the disputed amount
     recourse.py       counterfactual "what would flip this verdict"
+backend/
+  db.py               SQLAlchemy schema + append-only event log guard
+  service.py          the pipeline wired to persistence (state machine)
+  schemas.py          Pydantic request/response models
+  main.py             FastAPI app + WebSocket status hub
 models/               calibrator.json (fitted artifact, committed)
-tests/                241 tests, all offline
+tests/                262 tests, all offline
 docs/                 initial proposal, Amex design system spec
 ```
 
-Nothing exists yet under `backend/`, `frontend/`, or `arbiter/eval/`.
+Run the API: `uvicorn backend.main:app --reload`
+Nothing exists yet under `frontend/` or `arbiter/eval/`.
 
 ---
 
@@ -172,35 +179,37 @@ the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 7
+## Where to pick up: Stage 8
 
-**FastAPI backend + SQLAlchemy schema + append-only event log.** This wires the engine
-into a service. The whole pipeline is callable now:
+**React UI with the Amex design system, light AND dark themes.** The user asked for
+this explicitly and attached `docs/amex-design-system.md` — follow its tokens (Amex Blue
+#006FCF, navy #00175A, Benton Sans stack, 8px grid, the semantic colours, the AA/AAA
+contrast notes). Both themes are a hard requirement.
 
-```
-classify(narrative) -> reason code
-verify_case(case)   -> NLI-annotated evidence   (arbiter.nlp)
-adjudicate(case)    -> Adjudication              (arbiter.core.ledger)
-calibrator.route(adj) -> RoutedVerdict           (arbiter.calibration)
-propose_settlement(adj, amount) / counterfactual_recourse(adj)  (arbiter.settlement)
-```
+The API is live and every field the UI needs is already served:
 
-The schema is specified in README ("Database spine"): append-only `dispute_events` as
-the spine, `evidence_items` storing `contribution_decibans` per row (the queryable
-XAI), content-hashed blobs. Build endpoints for intake, evidence upload, adjudication,
-and a WebSocket status stream. Keep the NLI model behind the stub by default so the API
-starts without a download.
+- `POST /api/classify` — intake helper, returns reason code + alternatives
+- `POST /api/disputes` → `POST /api/disputes/{id}/adjudicate` — returns the full
+  `VerdictOut`: headline, burden_statement, citation, reasoning, **waterfall** (the
+  hero chart), entries with `contribution_decibans`, settlement, recourse
+- `GET /api/disputes/{id}` — status + immutable event log (drives the live tracker)
+- `WS /ws/disputes/{id}` — pushes status on adjudication
 
-**Model download note.** The environment sets `HF_HUB_ENABLE_HF_TRANSFER=1` but
-`hf_transfer` is not installed, so downloads fail. Set `$env:HF_HUB_ENABLE_HF_TRANSFER="0"`
-first. `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli` is already cached locally.
+The centrepiece is the **Evidence Ledger waterfall** (`VerdictOut.waterfall`): a
+horizontal chart starting at the burden-of-proof prior, each exhibit pushing left
+(merchant) or right (card member) by its exact deciban delta, ending at the verdict.
+Then the dual portals (card member / merchant), the live status tracker off the event
+log, and the "Challenge the Verdict" panel off `recourse`.
+
+Node is at `C:\Program Files\nodejs` (v24) but NOT on the inherited PATH — prefix:
+`$env:PATH = "C:\Program Files\nodejs;$env:PATH"`. Use the dataviz skill before building
+the waterfall chart.
 
 ### Remaining stages
 
 | # | Stage | Notes |
 |---|---|---|
-| 7 | FastAPI + SQLAlchemy + append-only event log | full pipeline is callable, see above |
-| 8 | React UI, Amex design system, light **and** dark | user explicitly asked for both |
+| 8 | React UI, Amex design system, light **and** dark | API is live; waterfall is the hero |
 | 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability already in calibration/ |
 
 ---
