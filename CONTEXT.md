@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 5 complete.
+Last updated: Stage 6 complete.
 
 ---
 
@@ -75,9 +75,10 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `7cf8876` | Stage 3 — synthetic corpus generator, and five engine bugs it exposed |
 | `35caedf` | docs — CONTEXT.md and LOGIC.md |
 | `ba98bdf` | Stage 4 — NLI evidence verifier + reason-code classifier |
-| (Stage 5) | conformal abstention, temperature scaling, routing |
+| `4c0f92e` | Stage 5 — conformal abstention, temperature scaling, routing |
+| (Stage 6) | Nash settlement + counterfactual recourse |
 
-**215 tests passing.** Run: `python -m pytest tests/ -q`
+**241 tests passing.** Run: `python -m pytest tests/ -q`
 
 All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
 downloads weights during a test run.
@@ -108,13 +109,15 @@ arbiter/
     temperature.py    temperature scaling + ECE/MCE/reliability
     conformal.py      split-conformal abstention, routing, persistence
     fit_calibrator.py CLI: fit + validate + save the calibrator
+  settlement/
+    nash.py           Nash bargaining split of the disputed amount
+    recourse.py       counterfactual "what would flip this verdict"
 models/               calibrator.json (fitted artifact, committed)
-tests/                215 tests, all offline
+tests/                241 tests, all offline
 docs/                 initial proposal, Amex design system spec
 ```
 
-Nothing exists yet under `backend/`, `frontend/`, `arbiter/settlement/`, or
-`arbiter/eval/`.
+Nothing exists yet under `backend/`, `frontend/`, or `arbiter/eval/`.
 
 ---
 
@@ -154,23 +157,39 @@ temperature T=1.78 (ledger was overconfident)   ECE 0.066
 end-to-end routing: auto_resolve 64% | settlement 20% | statute 12% | human 3%
 ```
 
+Stage 6 settlement + recourse:
+
+```
+Nash settlement offers: 100% mutually beneficial (both beat their fight outcome)
+  at Lambda=0 the split is ~52.5% CM / 47.5% M (tilted to the higher-cost merchant)
+  surplus each = the avoided cost of fighting, split fairly
+counterfactual recourse: 271/271 'sufficient' options actually flip the verdict
+  the arithmetic is exact, so recourse is a promise, not a model guess
+```
+
 Corpus distribution: 51% card-member-right, 34% merchant-right, 15% ambiguous. C08 is
 the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 6
+## Where to pick up: Stage 7
 
-**Nash settlement engine + counterfactual recourse.** The routing layer already sends
-contested-but-settlement-capable cases to `Route.SETTLEMENT`; Stage 6 computes the
-actual split. For a disputed amount V and calibrated posterior, the card member's
-share centres on `x* = V·σ(Λ) + ½(c_M − c_CM)` — proportional to the evidence, adjusted
-for each side's cost of continuing. Counterfactual recourse ("provide signed delivery
-confirmation and the verdict flips") reduces to arithmetic: find the minimal evidence
-change whose contribution sums to −Λ.
+**FastAPI backend + SQLAlchemy schema + append-only event log.** This wires the engine
+into a service. The whole pipeline is callable now:
 
-`RoutedVerdict` and `Route` from `arbiter.calibration.conformal` are the inputs.
-`ReasonCodeSpec.supports_settlement` already flags which codes admit a partial remedy.
+```
+classify(narrative) -> reason code
+verify_case(case)   -> NLI-annotated evidence   (arbiter.nlp)
+adjudicate(case)    -> Adjudication              (arbiter.core.ledger)
+calibrator.route(adj) -> RoutedVerdict           (arbiter.calibration)
+propose_settlement(adj, amount) / counterfactual_recourse(adj)  (arbiter.settlement)
+```
+
+The schema is specified in README ("Database spine"): append-only `dispute_events` as
+the spine, `evidence_items` storing `contribution_decibans` per row (the queryable
+XAI), content-hashed blobs. Build endpoints for intake, evidence upload, adjudication,
+and a WebSocket status stream. Keep the NLI model behind the stub by default so the API
+starts without a download.
 
 **Model download note.** The environment sets `HF_HUB_ENABLE_HF_TRANSFER=1` but
 `hf_transfer` is not installed, so downloads fail. Set `$env:HF_HUB_ENABLE_HF_TRANSFER="0"`
@@ -180,8 +199,7 @@ first. `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli` is already cached locally.
 
 | # | Stage | Notes |
 |---|---|---|
-| 6 | Nash settlement + counterfactual recourse | routing already sends cases to SETTLEMENT |
-| 7 | FastAPI + SQLAlchemy + append-only event log | |
+| 7 | FastAPI + SQLAlchemy + append-only event log | full pipeline is callable, see above |
 | 8 | React UI, Amex design system, light **and** dark | user explicitly asked for both |
 | 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability already in calibration/ |
 

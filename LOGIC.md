@@ -362,6 +362,46 @@ forced. **When a rule can be wrong, it must not report certainty.**
 
 ---
 
+## 9b. Settlement and recourse: two consequences of the log-odds design
+
+Both Stage 6 features fall out of the additive log-odds model almost for free, which is
+itself evidence the model was the right choice.
+
+**Nash settlement.** When the posterior is a coin flip, a binary verdict is only ~50%
+likely to be right and makes one party angry. The fairer disposition is to split the
+disputed amount in proportion to the evidence. The Nash bargaining solution under
+linear utilities has a closed form:
+
+    x* = V · σ(Λ) + ½(c_M − c_CM)
+
+The first term is the evidence-proportional split; the second tilts toward whichever
+party finds *continuing* more costly, because they gain more from settling. Costs are
+modelled as fractions of V (a full representment cycle is real effort). The result:
+**every offer is mutually beneficial** — both sides beat their expected outcome from
+fighting, so neither has a rational reason to reject. Measured: 100% across the corpus,
+and the total surplus each side gains equals the cost of the fight they avoided.
+
+This is the answer to "fairly weighs the card member vs merchant perspective" that a
+classifier cannot give: not picking a winner, but finding the allocation both prefer to
+a fight.
+
+**Counterfactual recourse.** "Provide a signed delivery confirmation and the verdict
+flips." Because the ledger is additive, this is *arithmetic, not search*: the verdict
+flips when the posterior crosses zero, so the losing party needs evidence whose
+contribution exceeds the current margin |Λ|. Each option's effect is therefore exact —
+a "sufficient" option provably crosses zero when applied (verified 271/271 on the
+corpus), so it is safe to show a user as a promise rather than a prediction.
+
+Two guardrails learned while building it:
+
+- **Only party-filed exhibits are discreditable.** A first version offered to "challenge
+  the authenticity" of a network-sourced visual-similarity score. You cannot dispute the
+  authenticity of a measurement — network and computed exhibits are excluded.
+- **Newly-filed evidence is quoted at conservative authenticity** (0.7, not 1.0), because
+  a party cannot promise their future exhibit will verify.
+
+---
+
 ## 10. Design decisions a future session should not silently reverse
 
 | Decision | Why it is that way |

@@ -172,6 +172,10 @@ class LedgerEntry:
     evidence_id: str
     label: str
     party: Party
+    #: The exhibit's canonical type, carried so downstream consumers (counterfactual
+    #: recourse, the fairness audit) can reason about what was filed without re-reading
+    #: the original evidence list.
+    etype: EvidenceType
     #: Log-likelihood ratio before weighting or quality discount, in nats.
     lambda_lr: float
     #: Authenticity actually applied, after the unverified ceiling.
@@ -366,6 +370,7 @@ def build_entry(
         evidence_id=evidence.evidence_id or "",
         label=evidence.describe(),
         party=evidence.party,
+        etype=evidence.etype,
         lambda_lr=lam,
         quality=quality,
         weight=weight,
