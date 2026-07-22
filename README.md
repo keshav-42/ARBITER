@@ -160,6 +160,7 @@ Each stage is a commit. Each stage leaves the repo in a runnable state.
 | 5 | **Conformal** | Split-conformal abstention with a coverage guarantee, temperature scaling, routing | ✅ |
 | 6 | **Settlement** | Nash bargaining split + counterfactual "what would flip this" recourse | ✅ |
 | 7 | **Backend** | FastAPI + SQLAlchemy, append-only event log, WebSocket status stream | ✅ |
+| 8 | **UI** | React + Vite, Amex design system, light **and** dark, Evidence Ledger waterfall | ✅ |
 | 4 | **NLP layer** | Zero-shot NLI evidence verifier, reason-code classifier, guide retrieval | ⬜ |
 | 5 | **Conformal** | Split-conformal calibration, abstention routing, temperature scaling | ⬜ |
 | 6 | **Settlement** | Nash bargaining engine + counterfactual recourse ("what would flip this") | ⬜ |

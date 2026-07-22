@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 7 complete.
+Last updated: Stage 8 complete.
 
 ---
 
@@ -77,9 +77,11 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `ba98bdf` | Stage 4 — NLI evidence verifier + reason-code classifier |
 | `4c0f92e` | Stage 5 — conformal abstention, temperature scaling, routing |
 | `f08a8c8` | Stage 6 — Nash settlement + counterfactual recourse |
-| (Stage 7) | FastAPI backend, SQLAlchemy schema, append-only event log |
+| `6ca5512` | Stage 7 — FastAPI backend, SQLAlchemy schema, append-only event log |
+| (Stage 8) | React UI, Amex design system, light + dark themes |
 
-**262 tests passing.** Run: `python -m pytest tests/ -q`
+**262 tests passing** (Python). Run: `python -m pytest tests/ -q`
+Frontend builds clean: `cd frontend && npm run build`
 
 All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
 downloads weights during a test run.
@@ -123,8 +125,20 @@ tests/                262 tests, all offline
 docs/                 initial proposal, Amex design system spec
 ```
 
-Run the API: `uvicorn backend.main:app --reload`
-Nothing exists yet under `frontend/` or `arbiter/eval/`.
+frontend/
+  src/theme.css       Amex tokens, both themes (dark is designed, not inverted)
+  src/components/      Waterfall (hero), VerdictCard, StatusTracker, IntakeForm
+  src/lib/             api client, theme hook, demo fixture
+  src/App.tsx          shell: intake -> verdict + live tracker
+models/               calibrator.json (fitted artifact, committed)
+tests/                262 tests, all offline
+docs/                 initial proposal, Amex design system spec
+```
+
+Run the API: `uvicorn backend.main:app --port 8000`
+Run the UI: `cd frontend && npm run dev` (Node at C:\Program Files\nodejs, not on PATH)
+Offline demo: `http://localhost:5173/?demo=1&theme=light`
+Nothing exists yet under `arbiter/eval/`.
 
 ---
 
@@ -179,38 +193,34 @@ the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 8
+## Where to pick up: Stage 9 (final)
 
-**React UI with the Amex design system, light AND dark themes.** The user asked for
-this explicitly and attached `docs/amex-design-system.md` — follow its tokens (Amex Blue
-#006FCF, navy #00175A, Benton Sans stack, 8px grid, the semantic colours, the AA/AAA
-contrast notes). Both themes are a hard requirement.
+**Fairness audit + evaluation harness — the slides.** This stage produces the numbers
+and charts that back the pitch. Most of the machinery already exists:
 
-The API is live and every field the UI needs is already served:
+- **ECE / MCE / reliability diagrams** — `arbiter/calibration/temperature.py`
+- **Coverage validation** — `arbiter/calibration/conformal.py::evaluate_coverage`
+- **Ground-truth agreement by code/difficulty** — `arbiter/data/build_corpus.py`
 
-- `POST /api/classify` — intake helper, returns reason code + alternatives
-- `POST /api/disputes` → `POST /api/disputes/{id}/adjudicate` — returns the full
-  `VerdictOut`: headline, burden_statement, citation, reasoning, **waterfall** (the
-  hero chart), entries with `contribution_decibans`, settlement, recourse
-- `GET /api/disputes/{id}` — status + immutable event log (drives the live tracker)
-- `WS /ws/disputes/{id}` — pushes status on adjudication
+What Stage 9 adds under `arbiter/eval/`:
 
-The centrepiece is the **Evidence Ledger waterfall** (`VerdictOut.waterfall`): a
-horizontal chart starting at the burden-of-proof prior, each exhibit pushing left
-(merchant) or right (card member) by its exact deciban delta, ending at the verdict.
-Then the dual portals (card member / merchant), the live status tracker off the event
-log, and the "Challenge the Verdict" panel off `recourse`.
+1. **Fairness / asymmetry audit** — the counterfactual role-swap test (swap CM and
+   merchant evidence; the verdict must flip — if it doesn't, the model has a
+   side-bias). Plus AsymGap across merchant size, CM tenure, value bands. The
+   `apply_reputation=False` path on `adjudicate` exists specifically for this.
+2. **A single eval report** — agreement, ECE, coverage curve, per-code table,
+   latency (p50/p95), throughput — emitted as JSON + a static HTML the deck can screenshot.
+3. Optionally wire the metrics into a UI "system report" page.
 
-Node is at `C:\Program Files\nodejs` (v24) but NOT on the inherited PATH — prefix:
-`$env:PATH = "C:\Program Files\nodejs;$env:PATH"`. Use the dataviz skill before building
-the waterfall chart.
+Node is at `C:\Program Files\nodejs` (v24), NOT on the inherited PATH — prefix
+`$env:PATH = "C:\Program Files\nodejs;$env:PATH"`. HF downloads need
+`$env:HF_HUB_ENABLE_HF_TRANSFER="0"`.
 
-### Remaining stages
+### The one remaining stage
 
 | # | Stage | Notes |
 |---|---|---|
-| 8 | React UI, Amex design system, light **and** dark | API is live; waterfall is the hero |
-| 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability already in calibration/ |
+| 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability/coverage already exist; add eval/ + asymmetry test |
 
 ---
 

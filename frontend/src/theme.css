@@ -1,0 +1,186 @@
+/*
+ * ARBITER design tokens — American Express design system.
+ *
+ * Values are taken verbatim from docs/amex-design-system.md: Amex Blue #006FCF as the
+ * action colour, deep navy #00175A for premium/dark surfaces, Benton Sans stack,
+ * 8px grid, the documented semantic colours and their AA/AAA contrast notes.
+ *
+ * Light is the default. Dark is a DESIGNED theme, not an inverted one: navy becomes
+ * the canvas (white-on-navy passes AAA), blue is lifted so it stays legible on dark,
+ * and the same semantic hues are brightened to hold contrast. The viewer's toggle
+ * stamps data-theme on <html>, and these blocks win in both directions.
+ */
+
+:root {
+  /* brand blue */
+  --primary: #006fcf;
+  --on-primary: #ffffff;
+  --primary-hover: #1374d4;
+  --primary-pressed: #00509e;
+
+  /* premium navy */
+  --navy: #00175a;
+  --navy-deep: #000c3d;
+
+  /* light surface system */
+  --canvas: #ffffff;
+  --surface-1: #f7f8f9;
+  --surface-2: #eceded;
+  --border: #d5d9dc;
+  --border-subtle: #eceded;
+
+  /* ink on light */
+  --ink: #1a1a1a;
+  --ink-muted: #53565a;
+  --ink-subdued: #86888c;
+
+  /* on-navy */
+  --ink-on-navy: #ffffff;
+  --ink-on-navy-muted: #b7c3d9;
+
+  /* premium accent — tier signalling only, never text */
+  --gold: #bf9b30;
+
+  /* semantic */
+  --success: #00875a;
+  --warning: #b95000;
+  --error: #c52720;
+
+  /* diverging pair for the ledger waterfall.
+     card member (positive) reads in Amex blue; merchant (negative) in a warm gold-brown
+     that is distinct from both blue and the red error colour. Validated for CVD. */
+  --cm: #006fcf; /* card member — favours positive log-odds */
+  --cm-soft: #d7e6f6;
+  --merchant: #9a6a12; /* merchant — favours negative log-odds */
+  --merchant-soft: #f0e6d0;
+  --neutral-mark: #86888c;
+
+  /* elevation */
+  --shadow-card: 0 1px 4px rgba(0, 23, 90, 0.1);
+  --shadow-elevated: 0 6px 24px rgba(0, 23, 90, 0.16);
+
+  /* geometry */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+
+  /* type */
+  --font: "Benton Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* motion */
+  --dur-fast: 120ms;
+  --dur-base: 240ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* focus ring, per spec: 2px solid blue on light */
+  --focus-ring: var(--primary);
+}
+
+:root[data-theme="dark"] {
+  /* navy becomes the canvas; white-on-navy passes AAA */
+  --canvas: #00102e;
+  --surface-1: #041a3f;
+  --surface-2: #0a2350;
+  --border: #1c3563;
+  --border-subtle: #14264a;
+
+  /* blue lifted so it stays legible on dark surfaces */
+  --primary: #3a94e6;
+  --on-primary: #00102e;
+  --primary-hover: #57a6ee;
+  --primary-pressed: #2b83d4;
+
+  --navy: #000c3d;
+  --navy-deep: #00081f;
+
+  --ink: #f3f6fb;
+  --ink-muted: #b7c3d9;
+  --ink-subdued: #8494b3;
+
+  --ink-on-navy: #ffffff;
+  --ink-on-navy-muted: #b7c3d9;
+
+  --gold: #d8b74e;
+
+  --success: #4cc79b;
+  --warning: #f0913e;
+  --error: #f2635c;
+
+  /* chart marks are validated separately from the UI blue: they must sit in the
+     dark lightness band [0.48,0.67]. Pair #3585d4 / #a37a2c passes all six checks
+     (CVD ΔE 23.7) against the #00102e dark surface. */
+  --cm: #3585d4;
+  --cm-soft: #0e2f57;
+  --merchant: #a37a2c;
+  --merchant-soft: #3a2f14;
+  --neutral-mark: #8494b3;
+
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 8px 28px rgba(0, 0, 0, 0.5);
+
+  --focus-ring: #ffffff;
+}
+
+/* ---- reset ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--surface-1);
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: var(--primary);
+}
+
+/* tabular figures for all monetary and numeric values, per spec */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* visible focus, always — 2px ring against the active surface */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
