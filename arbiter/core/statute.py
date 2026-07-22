@@ -33,6 +33,12 @@ DISPOSITIVE_LOGODDS: float = 12.0
 #: Magnitude of a STRONG rule — heavy, but a determined counter-record can overcome it.
 STRONG_LOGODDS: float = 2.5
 
+#: Magnitude of a rebuttable procedural presumption. Larger than STRONG, so silence or
+#: a bare record normally decides the case, but finite so a compelling counter-record
+#: can still overcome it — and, critically, so the posterior stays measurable rather
+#: than pinned at certainty.
+PRESUMPTION_LOGODDS: float = 4.0
+
 
 class RuleForce(str, Enum):
     """How hard a rule pushes."""
@@ -126,10 +132,24 @@ def rule(fn: Rule) -> Rule:
 
 @rule
 def merchant_no_reply(ctx: StatuteContext) -> RuleFinding | None:
-    """Merchant silence past the representment window is a procedural default.
+    """Merchant silence past the representment window raises a procedural presumption.
 
-    The guide gives the merchant a fixed window to respond. Missing it decides the
-    case regardless of what the evidence might have shown.
+    Deliberately NOT dispositive, and the distinction is measured rather than
+    stylistic. As a hard clamp this rule had a **20.8% error rate** against ground
+    truth — by far the worst of any statute rule — because a merchant who was
+    factually right but missed a deadline was clamped to a confident wrong verdict.
+    Every scenario it failed on (`C08.delivered_correctly`, `C31.as_described`,
+    `F29.authenticated_purchase`) was one the merchant should have won.
+
+    Worse, a clamp reports confidence 1.0, so the conformal layer could never abstain
+    on these cases: the system would have been maximally certain exactly where it was
+    most often wrong.
+
+    A presumption instead. Silence still normally loses — `PRESUMPTION_LOGODDS` is
+    large — but network-sourced facts and a strong documentary record can rebut it,
+    and the posterior stays finite so uncertainty remains measurable.
+
+    Compare `filed_outside_dispute_window`, which measures the *Card Member's* clock.
     """
     days = ctx.merchant_response_days
     if days is None:
@@ -138,15 +158,16 @@ def merchant_no_reply(ctx: StatuteContext) -> RuleFinding | None:
         return None
     return RuleFinding(
         rule_id="PROC.NO_REPLY",
-        force=RuleForce.DISPOSITIVE,
+        force=RuleForce.STRONG,
         favours=Party.CARD_MEMBER,
         rationale=(
             f"Merchant responded after {days} days, exceeding the "
             f"{ctx.spec.representment_window_days}-day representment window for "
-            f"{ctx.spec.code.value}. Resolved in favour of the Card Member by default."
+            f"{ctx.spec.code.value}. This raises a procedural presumption in favour "
+            "of the Card Member, rebuttable only by a compelling record."
         ),
         guide_reference="Chargeback Code Guide — representment time limits",
-        logodds_delta=DISPOSITIVE_LOGODDS,
+        logodds_delta=PRESUMPTION_LOGODDS,
     )
 
 
@@ -242,8 +263,9 @@ def unmet_merchant_burden(ctx: StatuteContext) -> RuleFinding | None:
     """A responsive merchant who files nothing substantive fails their burden.
 
     Complements `merchant_no_reply`, which handles silence. This covers the merchant
-    who replies on time but produces no records. C08 has its own dispositive rule, so
-    it is excluded here to avoid double-counting.
+    who replies on time but produces no records. C08 is excluded because
+    `no_delivery_proof` already covers it with a code-specific presumption; running
+    both would double-count the same failure.
     """
     if ctx.spec.burden is not BurdenOfProof.MERCHANT:
         return None
@@ -316,14 +338,19 @@ def no_delivery_proof(ctx: StatuteContext) -> RuleFinding | None:
         )
     return RuleFinding(
         rule_id="C08.NO_DELIVERY_PROOF",
-        force=RuleForce.DISPOSITIVE,
+        force=RuleForce.STRONG,
         favours=Party.CARD_MEMBER,
         rationale=(
             "AMEX Code C08 requires valid carrier delivery confirmation. The merchant "
-            "produced no proof of delivery, signature, or service usage."
+            "produced no proof of delivery, signature, or service usage, which raises "
+            "a strong presumption in favour of the Card Member."
         ),
         guide_reference="Chargeback Code Guide — C08 requires proof of delivery",
-        logodds_delta=DISPOSITIVE_LOGODDS,
+        # A presumption rather than a clamp, for the same reason as PROC.NO_REPLY: a
+        # merchant who filed nothing may still be factually right, and a clamp reports
+        # confidence 1.0 so the conformal layer could never abstain on it. Failing to
+        # produce evidence is near-decisive, not decisive.
+        logodds_delta=PRESUMPTION_LOGODDS,
     )
 
 

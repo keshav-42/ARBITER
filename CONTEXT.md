@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 4 complete.
+Last updated: Stage 5 complete.
 
 ---
 
@@ -74,9 +74,10 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `4d0d496` | Stage 2 — Bayesian Evidence Ledger, reputation, verdict narration |
 | `7cf8876` | Stage 3 — synthetic corpus generator, and five engine bugs it exposed |
 | `35caedf` | docs — CONTEXT.md and LOGIC.md |
-| (Stage 4) | NLI evidence verifier + reason-code classifier |
+| `ba98bdf` | Stage 4 — NLI evidence verifier + reason-code classifier |
+| (Stage 5) | conformal abstention, temperature scaling, routing |
 
-**172 tests passing.** Run: `python -m pytest tests/ -q`
+**215 tests passing.** Run: `python -m pytest tests/ -q`
 
 All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
 downloads weights during a test run.
@@ -103,12 +104,17 @@ arbiter/
     hypotheses.py     what each exhibit is offered to prove, per (code, type)
     verifier.py       NLI backends: offline stub + DeBERTa MNLI
     classifier.py     reason-code classification from free text
-tests/                172 tests, all offline
+  calibration/
+    temperature.py    temperature scaling + ECE/MCE/reliability
+    conformal.py      split-conformal abstention, routing, persistence
+    fit_calibrator.py CLI: fit + validate + save the calibrator
+models/               calibrator.json (fitted artifact, committed)
+tests/                215 tests, all offline
 docs/                 initial proposal, Amex design system spec
 ```
 
-Nothing exists yet under `backend/`, `frontend/`, `arbiter/calibration/`,
-`arbiter/settlement/`, or `arbiter/eval/`.
+Nothing exists yet under `backend/`, `frontend/`, `arbiter/settlement/`, or
+`arbiter/eval/`.
 
 ---
 
@@ -137,23 +143,34 @@ on misleading-record scenarios only, real model vs baseline:  82.2% -> 92.8%
     C08.wrong_address     89.2% ->  95.0%
 ```
 
+Stage 5 conformal (validated on a held-out split, `models/calibrator.json`):
+
+```
+COVERAGE GUARANTEE HOLDS AT EVERY ALPHA
+    alpha=0.20  target 80%  empirical 81.6%   auto-resolve 97.9%
+    alpha=0.10  target 90%  empirical 90.6%   auto-resolve 75.3%  acc 87.6%
+    alpha=0.05  target 95%  empirical 95.1%   auto-resolve 44.4%
+temperature T=1.78 (ledger was overconfident)   ECE 0.066
+end-to-end routing: auto_resolve 64% | settlement 20% | statute 12% | human 3%
+```
+
 Corpus distribution: 51% card-member-right, 34% merchant-right, 15% ambiguous. C08 is
 the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 5
+## Where to pick up: Stage 6
 
-**Conformal calibration and abstention routing.** This replaces the hand-picked
-`CONTESTED_BAND = 0.85` with a split-conformal threshold carrying a distribution-free
-coverage guarantee.
+**Nash settlement engine + counterfactual recourse.** The routing layer already sends
+contested-but-settlement-capable cases to `Route.SETTLEMENT`; Stage 6 computes the
+actual split. For a disputed amount V and calibrated posterior, the card member's
+share centres on `x* = V·σ(Λ) + ½(c_M − c_CM)` — proportional to the evidence, adjusted
+for each side's cost of continuing. Counterfactual recourse ("provide signed delivery
+confirmation and the verdict flips") reduces to arithmetic: find the minimal evidence
+change whose contribution sums to −Λ.
 
-The groundwork is done: a band sweep (see LOGIC.md §9) shows the posterior already
-ranks uncertainty correctly, so Stage 5 only has to pick the operating point on that
-curve. Do **not** hand-tune the band against the corpus.
-
-The claim this unlocks: *"we auto-resolve X% of disputes at a guaranteed 1−α coverage,
-and escalate the rest by design"* — far stronger than a bare accuracy number.
+`RoutedVerdict` and `Route` from `arbiter.calibration.conformal` are the inputs.
+`ReasonCodeSpec.supports_settlement` already flags which codes admit a partial remedy.
 
 **Model download note.** The environment sets `HF_HUB_ENABLE_HF_TRANSFER=1` but
 `hf_transfer` is not installed, so downloads fail. Set `$env:HF_HUB_ENABLE_HF_TRANSFER="0"`
@@ -163,11 +180,10 @@ first. `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli` is already cached locally.
 
 | # | Stage | Notes |
 |---|---|---|
-| 5 | Conformal calibration + abstention | replaces `CONTESTED_BAND` heuristic |
-| 6 | Nash settlement + counterfactual recourse | |
+| 6 | Nash settlement + counterfactual recourse | routing already sends cases to SETTLEMENT |
 | 7 | FastAPI + SQLAlchemy + append-only event log | |
 | 8 | React UI, Amex design system, light **and** dark | user explicitly asked for both |
-| 9 | Fairness audit, ECE, coverage plots, latency | |
+| 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability already in calibration/ |
 
 ---
 

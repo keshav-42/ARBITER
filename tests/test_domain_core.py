@@ -20,8 +20,11 @@ from arbiter.core.reason_codes import (
     get_spec,
     supported_codes,
 )
+from arbiter.core.ledger import DisputeCase, Verdict, adjudicate
 from arbiter.core.statute import (
     DISPOSITIVE_LOGODDS,
+    PRESUMPTION_LOGODDS,
+    STRONG_LOGODDS,
     RuleForce,
     StatuteContext,
     evaluate,
@@ -159,11 +162,15 @@ def test_rules_are_registered():
     assert registered_rule_count() >= 8
 
 
-def test_c08_with_no_delivery_proof_is_dispositive_for_card_member():
+def test_c08_with_no_delivery_proof_raises_a_presumption_for_card_member():
+    """Near-decisive, not dispositive: a merchant who filed nothing may still be
+    right, and a clamp would report confidence 1.0 and foreclose abstention."""
     outcome = evaluate(_ctx(ReasonCode.C08))
-    assert outcome.is_decided
-    assert outcome.clamp == DISPOSITIVE_LOGODDS
-    assert outcome.dispositive.rule_id == "C08.NO_DELIVERY_PROOF"
+    assert not outcome.is_decided
+    finding = next(f for f in outcome.findings if f.rule_id == "C08.NO_DELIVERY_PROOF")
+    assert finding.force is RuleForce.STRONG
+    assert finding.favours is Party.CARD_MEMBER
+    assert outcome.logodds_delta >= PRESUMPTION_LOGODDS - STRONG_LOGODDS
 
 
 def test_c08_with_verified_delivery_is_not_dispositive():
@@ -233,13 +240,55 @@ def test_timely_verified_return_without_credit_favours_card_member():
     assert any(f.rule_id == "POLICY.TIMELY_RETURN_NO_CREDIT" for f in outcome.findings)
 
 
-def test_merchant_no_reply_is_dispositive():
+def test_merchant_no_reply_raises_a_rebuttable_presumption():
+    """Silence normally loses, but is NOT a hard clamp.
+
+    As a dispositive rule this had a 20.8% error rate against ground truth — the
+    worst of any statute rule — because a merchant who was factually right but
+    missed a deadline was clamped to a confident wrong verdict. A clamp also
+    reports confidence 1.0, so the conformal layer could never abstain on exactly
+    the cases where the system was most often wrong.
+    """
     spec = get_spec(ReasonCode.C31)
     outcome = evaluate(
         _ctx(ReasonCode.C31, merchant_response_days=spec.representment_window_days + 1)
     )
-    assert outcome.is_decided
-    assert outcome.clamp == DISPOSITIVE_LOGODDS
+    finding = next(f for f in outcome.findings if f.rule_id == "PROC.NO_REPLY")
+    assert finding.force is RuleForce.STRONG
+    assert not finding.is_dispositive
+    assert finding.favours is Party.CARD_MEMBER
+    assert outcome.clamp is None
+    # Still heavy enough to decide an otherwise empty record.
+    assert outcome.logodds_delta >= PRESUMPTION_LOGODDS - STRONG_LOGODDS
+
+
+def test_silence_alone_still_loses_the_case():
+    case = DisputeCase(reason_code=ReasonCode.C31, merchant_response_days=99)
+    assert adjudicate(case).verdict is Verdict.CARD_MEMBER
+
+
+def test_a_compelling_record_can_rebut_the_presumption():
+    """The property the presumption exists to allow."""
+    case = DisputeCase(
+        reason_code=ReasonCode.C31,
+        merchant_response_days=99,
+        evidence=[
+            Evidence(
+                etype=EvidenceType.VISUAL_SIMILARITY,
+                party=Party.NETWORK,
+                verified=True,
+                quality=0.95,
+                metadata={"lambda_lr": -2.4, "cosine": 0.97},
+            ),
+            Evidence(
+                etype=EvidenceType.PRODUCT_DESCRIPTION,
+                party=Party.MERCHANT,
+                quality=0.6,
+                metadata={"lambda_lr": -2.0},
+            ),
+        ],
+    )
+    assert adjudicate(case).verdict is not Verdict.CARD_MEMBER
 
 
 def test_merchant_reply_on_deadline_is_timely():

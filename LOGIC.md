@@ -323,6 +323,43 @@ correctly.** Stage 5 only has to pick the operating point.
 > X% at a guaranteed 1−α coverage"*, which is far stronger than a bare accuracy number and
 > is what a bank actually needs.
 
+### What Stage 5 delivered, and the clamp bug it exposed
+
+Split conformal was fitted on one half of the labelled corpus and validated on the
+other. The guarantee holds at every operating point:
+
+| α | target | empirical | auto-resolved |
+|---|---|---|---|
+| 0.20 | 80% | 81.6% | 97.9% |
+| 0.10 | 90% | 90.6% | 75.3% |
+| 0.05 | 95% | 95.1% | 44.4% |
+
+Temperature fitted to **T ≈ 1.78**, confirming the hand-built posterior was genuinely
+overconfident — which is expected for a sum of hand-set weights and is exactly what
+temperature scaling exists to correct.
+
+**The clamp bug.** Building the calibration set surfaced a serious flaw. Two "statute"
+rules — `PROC.NO_REPLY` (merchant silence) and `C08.NO_DELIVERY_PROOF` (merchant filed
+nothing) — were **dispositive clamps**, pinning confidence to 1.0. But `PROC.NO_REPLY`
+had a **20.8% error rate** against ground truth: a merchant who was factually right but
+missed a deadline was clamped to a confident *wrong* verdict. And because a clamp
+reports confidence 1.0, the conformal layer could never abstain on those cases — the
+system would have been *maximally certain exactly where it was most often wrong*, with a
+guarantee that silently excluded its worst blind spot.
+
+The fix draws a line that turns out to be fundamental: **a dispositive clamp is only for
+a hard fact, never for an inference from absence.**
+
+- Hard facts (posted refund, late return, confirmed duplicate, late settlement) stay
+  dispositive. Measured error rate: **0.0%**.
+- Absence-based rules (silence, no delivery proof) became **rebuttable presumptions**
+  at `PRESUMPTION_LOGODDS = 4.0` — large enough that silence normally loses, finite
+  enough that a compelling record can rebut it and the posterior stays measurable.
+
+After the fix, every remaining clamp is 0.0% wrong, and auto-resolution *rose* (70.5% →
+75.3% at α=0.10) because those cases now flow through calibration instead of being
+forced. **When a rule can be wrong, it must not report certainty.**
+
 ---
 
 ## 10. Design decisions a future session should not silently reverse

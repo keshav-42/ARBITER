@@ -155,7 +155,9 @@ Each stage is a commit. Each stage leaves the repo in a runnable state.
 | 0 | **Scaffold** | Repo layout, this README, tooling config | ✅ |
 | 1 | **Domain core** | Reason-code registry, burden-of-proof priors, statute rules, evidence taxonomy | ✅ |
 | 2 | **Evidence Ledger** | The log-odds arbitration engine, correlation damping, reputation, verdict narration | ✅ |
-| 3 | **Synthetic corpus** | Generator producing labeled disputes across all reason codes with ground-truth verdicts | ⬜ |
+| 3 | **Synthetic corpus** | Generator producing labeled disputes across all reason codes with ground-truth verdicts | ✅ |
+| 4 | **NLP layer** | Zero-shot NLI evidence verifier, reason-code classifier, hypothesis templates | ✅ |
+| 5 | **Conformal** | Split-conformal abstention with a coverage guarantee, temperature scaling, routing | ✅ |
 | 4 | **NLP layer** | Zero-shot NLI evidence verifier, reason-code classifier, guide retrieval | ⬜ |
 | 5 | **Conformal** | Split-conformal calibration, abstention routing, temperature scaling | ⬜ |
 | 6 | **Settlement** | Nash bargaining engine + counterfactual recourse ("what would flip this") | ⬜ |

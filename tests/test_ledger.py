@@ -243,9 +243,11 @@ def test_verified_delivery_defeats_c08_claim():
 
 
 def test_missing_delivery_proof_wins_c08_for_card_member():
+    """Wins via a strong presumption rather than a hard clamp (Stage 5 change)."""
     adj = adjudicate(DisputeCase(reason_code=ReasonCode.C08))
     assert adj.verdict is Verdict.CARD_MEMBER
-    assert adj.decided_by_statute
+    assert not adj.decided_by_statute
+    assert any(f.rule_id == "C08.NO_DELIVERY_PROOF" for f in adj.findings)
 
 
 def test_balanced_evidence_is_contested():
@@ -265,24 +267,31 @@ def test_balanced_evidence_is_contested():
 
 
 def test_statute_clamp_overrides_evidence_sum():
-    """Even with strong merchant evidence, a late reply is a procedural default."""
-    spec = get_spec(ReasonCode.C31)
+    """A dispositive rule decides the case regardless of the evidence sum.
+
+    Uses a late return (a hard date fact) rather than merchant silence — the
+    latter is a rebuttable presumption since Stage 5, precisely so that a
+    factually-correct merchant is not clamped to a confident wrong verdict.
+    """
     case = DisputeCase(
-        reason_code=ReasonCode.C31,
+        reason_code=ReasonCode.C04,
         evidence=[
             Evidence(
-                etype=EvidenceType.PRODUCT_DESCRIPTION,
-                party=Party.MERCHANT,
-                metadata={"lambda_lr": -2.0},
+                etype=EvidenceType.RETURN_TRACKING,
+                party=Party.CARD_MEMBER,
+                verified=True,
+                quality=0.95,
+                metadata={"lambda_lr": 2.0},
             )
         ],
-        merchant_response_days=spec.representment_window_days + 5,
+        return_shipped_day=19,
+        return_window_days=14,
     )
     adj = adjudicate(case)
-    assert adj.verdict is Verdict.CARD_MEMBER
+    assert adj.verdict is Verdict.MERCHANT
     assert adj.decided_by_statute
-    # Evidence is still recorded for transparency.
-    assert adj.entries and adj.entries[0].contribution < 0
+    # Evidence is still recorded for transparency, even though it did not decide.
+    assert adj.entries and adj.entries[0].contribution > 0
 
 
 def test_confidence_is_symmetric_around_half():
@@ -638,7 +647,15 @@ def test_waterfall_starts_at_prior_and_ends_at_posterior():
 
 
 def test_waterfall_includes_clamp_step_when_statute_decides():
-    steps = waterfall(adjudicate(DisputeCase(reason_code=ReasonCode.C08)))
+    """A genuinely dispositive rule (late return) still produces a clamp step.
+
+    C08 no longer qualifies since Stage 5 made its no-delivery-proof rule a
+    presumption rather than a clamp.
+    """
+    case = DisputeCase(
+        reason_code=ReasonCode.C04, return_shipped_day=19, return_window_days=14
+    )
+    steps = waterfall(adjudicate(case))
     assert any(s["kind"] == "clamp" for s in steps)
 
 
