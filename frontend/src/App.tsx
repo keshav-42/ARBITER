@@ -90,13 +90,11 @@ export default function App() {
           <section className="lede">
             <p className="lede-kicker">Dispute &amp; Chargeback Resolution</p>
             <h1 className="lede-head">
-              A contested charge deserves a ruling you can read — not a black box, and not
-              a six-week wait.
+              A ruling you can&nbsp;read.
             </h1>
             <p className="lede-sub">
-              ARBITER weighs both sides against the American Express Chargeback Code Guide,
-              states who had to prove what, shows its confidence, and proposes a fair split
-              when the evidence is a coin flip.
+              Contested charges, weighed against the American Express Chargeback Code
+              Guide and settled in minutes — with the reasons in plain sight.
             </p>
           </section>
         )}

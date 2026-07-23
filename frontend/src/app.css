@@ -212,10 +212,10 @@
   margin: 0 0 var(--s4);
 }
 .lede-head {
-  font-size: clamp(28px, 4.4vw, 44px);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  max-width: 18ch;
+  font-size: clamp(44px, 8vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  max-width: 14ch;
   text-wrap: balance;
   margin: 0 0 var(--s5);
 }
