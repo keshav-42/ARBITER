@@ -1,0 +1,152 @@
+{
+  "n_cases": 5000,
+  "agreement": 0.8846,
+  "by_code": {
+    "C02": 0.8089,
+    "C04": 0.8948,
+    "C05": 0.8099,
+    "C08": 0.9126,
+    "C28": 0.955,
+    "C31": 0.8563,
+    "C32": 0.7713,
+    "F29": 0.964,
+    "P05": 1.0,
+    "P07": 1.0,
+    "P08": 0.8293,
+    "R13": 1.0
+  },
+  "by_difficulty": {
+    "easy": 0.9329,
+    "medium": 0.7398,
+    "hard": 0.8559
+  },
+  "abstain_rate": 0.1809,
+  "statute_rate": 0.1228,
+  "ambiguous_abstain_rate": 0.2913,
+  "ece_raw": 0.0805,
+  "ece_calibrated": 0.0761,
+  "mce_calibrated": 0.2243,
+  "reliability": [
+    {
+      "lower": 0.5,
+      "upper": 0.55,
+      "count": 157,
+      "confidence": 0.5284,
+      "accuracy": 0.5223
+    },
+    {
+      "lower": 0.55,
+      "upper": 0.6,
+      "count": 187,
+      "confidence": 0.5784,
+      "accuracy": 0.5668
+    },
+    {
+      "lower": 0.6,
+      "upper": 0.65,
+      "count": 203,
+      "confidence": 0.6268,
+      "accuracy": 0.734
+    },
+    {
+      "lower": 0.65,
+      "upper": 0.7,
+      "count": 154,
+      "confidence": 0.6737,
+      "accuracy": 0.8701
+    },
+    {
+      "lower": 0.7,
+      "upper": 0.75,
+      "count": 116,
+      "confidence": 0.724,
+      "accuracy": 0.9483
+    },
+    {
+      "lower": 0.75,
+      "upper": 0.8,
+      "count": 178,
+      "confidence": 0.7772,
+      "accuracy": 0.8202
+    },
+    {
+      "lower": 0.8,
+      "upper": 0.85,
+      "count": 173,
+      "confidence": 0.8261,
+      "accuracy": 0.7514
+    },
+    {
+      "lower": 0.85,
+      "upper": 0.9,
+      "count": 156,
+      "confidence": 0.8707,
+      "accuracy": 0.7179
+    },
+    {
+      "lower": 0.9,
+      "upper": 0.95,
+      "count": 286,
+      "confidence": 0.9308,
+      "accuracy": 0.9685
+    },
+    {
+      "lower": 0.95,
+      "upper": 1.0,
+      "count": 214,
+      "confidence": 0.9743,
+      "accuracy": 0.9626
+    }
+  ],
+  "coverage": [
+    {
+      "alpha": 0.2,
+      "target": 0.8,
+      "empirical": 0.8125,
+      "auto_resolve_rate": 0.9682,
+      "accuracy_on_resolved": 0.8063,
+      "holds": true
+    },
+    {
+      "alpha": 0.15,
+      "target": 0.85,
+      "empirical": 0.8591,
+      "auto_resolve_rate": 0.8618,
+      "accuracy_on_resolved": 0.8365,
+      "holds": true
+    },
+    {
+      "alpha": 0.1,
+      "target": 0.9,
+      "empirical": 0.9046,
+      "auto_resolve_rate": 0.7292,
+      "accuracy_on_resolved": 0.8692,
+      "holds": true
+    },
+    {
+      "alpha": 0.05,
+      "target": 0.95,
+      "empirical": 0.955,
+      "auto_resolve_rate": 0.4019,
+      "accuracy_on_resolved": 0.8881,
+      "holds": true
+    }
+  ],
+  "role_swap_flip_rate": 1.0,
+  "role_swap_passes": true,
+  "asymmetry_gap": 0.0524,
+  "asymmetry_passes": true,
+  "reputation_max": 0.4,
+  "reputation_within_cap": true,
+  "burden_symmetric": true,
+  "latency_p50_ms": 0.0787,
+  "latency_p95_ms": 0.1183,
+  "latency_p99_ms": 0.1653,
+  "throughput_per_s": 12154.8,
+  "notes": {
+    "temperature": 1.8584,
+    "role_swap": "party-swap: 2872/2872 symmetric exhibits scored identity-independently (100.0%)  [EVEN-HANDED]  max residual 0.0000 nats",
+    "asymmetry": "transaction value: gap 5.2% [OK]  under $50=63%(n43)  $50\u2013250=58%(n318)  $250\u20131k=62%(n1107)  over $1k=60%(n1964)",
+    "reputation": "reputation: max |contribution| 0.400 nats vs cap 0.40  [WITHIN CAP]"
+  }
+}

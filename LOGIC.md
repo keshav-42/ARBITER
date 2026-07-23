@@ -402,6 +402,43 @@ Two guardrails learned while building it:
 
 ---
 
+## 9c. Fairness is measured, and measuring it found a real bug
+
+"Fair" is in the brief twice, so it is treated as a measurable quantity, not a claim.
+
+**The counterfactual party-swap test.** For evidence whose meaning is symmetric between
+the parties — correspondence, receipts, order records that either side could file with
+the same force — the score must be *identity-independent*: filed by the Card Member it
+weighs +x, and the same record filed by the Merchant must weigh exactly −x.
+
+Building this test **found a latent bias in the engine.** `email_thread` carried a fixed
+polarity of +0.4, so `compute_lambda` scored it in the Card Member's favour *even when
+the Merchant filed it*. A merchant's own refund-confirmation email was being counted
+against them. The fix (`FILER_ORIENTED_TYPES` in `ledger.py`) orients symmetric types by
+their filer, so the contribution negates cleanly. Result: 0/2296 → **2296/2296**
+symmetric exhibits scored identity-independently, zero residual.
+
+The important discipline was **not** "correcting" the two asymmetries that are supposed
+to exist:
+
+- the **burden of proof** is a prior that legitimately favours one side per code, and
+- **correlation damping** is order-dependent, so a swapped exhibit may join a different
+  group.
+
+An earlier version of the test conflated these with bias and flagged a 44% false
+positive. The final test isolates the one thing fairness actually requires — that the
+evidence-scoring path is blind to identity — and leaves the statute asymmetric by
+design. **When a fairness test fails, first ask whether it is measuring bias or measuring
+an intended asymmetry.**
+
+**Exchangeability and the split.** Conformal coverage requires the calibration and test
+sets to be exchangeable. The corpus is generated in scenario-weighted order, not
+shuffled, so a naive first-half/second-half split left the halves distributionally
+different — a systematic ~3% undercoverage on some seeds. The eval shuffles under a fixed
+seed before splitting. **Any split feeding a conformal guarantee must be shuffled first.**
+
+---
+
 ## 10. Design decisions a future session should not silently reverse
 
 | Decision | Why it is that way |
@@ -414,6 +451,9 @@ Two guardrails learned while building it:
 | Reputation capped and decaying | Prevents a self-reinforcing loop against small merchants |
 | Explanation assembled, not generated | Avoids confident rationalisation of wrong verdicts |
 | Ground truth ≠ ledger output | The gap is the thing being measured |
+| Symmetric evidence is oriented by its filer | Correspondence/receipts help whoever files them; a fixed polarity was a real identity bias |
+| The burden and damping asymmetries are *intended* | A fairness test must not "correct" them; they are the statute, not bias |
+| Conformal splits are shuffled first | A non-shuffled split breaks exchangeability and the coverage guarantee |
 | Vision (SigLIP) is the designated cut | ~8% of disputes turn on it; the ledger and waterfall are what win |
 
 ---

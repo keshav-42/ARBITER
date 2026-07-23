@@ -3,7 +3,7 @@
 **Read this first if you are picking up ARBITER in a new session.**
 Pair it with [LOGIC.md](LOGIC.md), which explains *why* the system is built the way it is.
 
-Last updated: Stage 8 complete.
+Last updated: Stage 9 complete — **all 9 stages done.**
 
 ---
 
@@ -78,10 +78,12 @@ $env:PATH = "C:\Program Files\nodejs;$env:PATH"
 | `4c0f92e` | Stage 5 — conformal abstention, temperature scaling, routing |
 | `f08a8c8` | Stage 6 — Nash settlement + counterfactual recourse |
 | `6ca5512` | Stage 7 — FastAPI backend, SQLAlchemy schema, append-only event log |
-| (Stage 8) | React UI, Amex design system, light + dark themes |
+| `01c14d2` | Stage 8 — React UI, Amex design system, light + dark themes |
+| (Stage 9) | fairness audit, calibration metrics, eval harness |
 
-**262 tests passing** (Python). Run: `python -m pytest tests/ -q`
+**284 tests passing** (Python). Run: `python -m pytest tests/ -q`
 Frontend builds clean: `cd frontend && npm run build`
+Eval report: `python -m arbiter.eval.run --n 5000 --out docs/eval-report`
 
 All tests are offline — the NLI layer uses a deterministic stub backend, so nothing
 downloads weights during a test run.
@@ -193,34 +195,28 @@ the largest code, matching real chargeback volume.
 
 ---
 
-## Where to pick up: Stage 9 (final)
+## All nine stages complete
 
-**Fairness audit + evaluation harness — the slides.** This stage produces the numbers
-and charts that back the pitch. Most of the machinery already exists:
+The system is end-to-end: intake → classify → verify → adjudicate → route →
+settle/recourse → persist → stream → UI, with a full evaluation harness.
 
-- **ECE / MCE / reliability diagrams** — `arbiter/calibration/temperature.py`
-- **Coverage validation** — `arbiter/calibration/conformal.py::evaluate_coverage`
-- **Ground-truth agreement by code/difficulty** — `arbiter/data/build_corpus.py`
+### If continuing, likely next steps (not yet built)
 
-What Stage 9 adds under `arbiter/eval/`:
-
-1. **Fairness / asymmetry audit** — the counterfactual role-swap test (swap CM and
-   merchant evidence; the verdict must flip — if it doesn't, the model has a
-   side-bias). Plus AsymGap across merchant size, CM tenure, value bands. The
-   `apply_reputation=False` path on `adjudicate` exists specifically for this.
-2. **A single eval report** — agreement, ECE, coverage curve, per-code table,
-   latency (p50/p95), throughput — emitted as JSON + a static HTML the deck can screenshot.
-3. Optionally wire the metrics into a UI "system report" page.
+- **Fine-tune the models.** The NLI verifier and classifier run on their zero-shot /
+  keyword backends. The three-stage curriculum (DAPT → weak supervision → LoRA) is
+  described in README; the corpus and hooks exist. Would lift the misleading-record
+  cases further.
+- **Real doc parsing (LayoutLMv3/Donut) and vision (SigLIP).** `VISUAL_SIMILARITY`
+  already flows through the ledger as a lambda; a real model drops in. Vision is the
+  designated cut — only ~8% of disputes turn on it.
+- **Merchant-side deflection console** (pre-dispute interception) and the WebSocket
+  live-push wired into the UI tracker (currently polls on adjudicate).
+- **Presentation deck + video.** `docs/eval-report.html` is the metrics slide;
+  `?demo=1` drives the walkthrough.
 
 Node is at `C:\Program Files\nodejs` (v24), NOT on the inherited PATH — prefix
 `$env:PATH = "C:\Program Files\nodejs;$env:PATH"`. HF downloads need
 `$env:HF_HUB_ENABLE_HF_TRANSFER="0"`.
-
-### The one remaining stage
-
-| # | Stage | Notes |
-|---|---|---|
-| 9 | Fairness audit, ECE, coverage plots, latency | ECE/reliability/coverage already exist; add eval/ + asymmetry test |
 
 ---
 

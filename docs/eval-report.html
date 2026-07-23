@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARBITER — Evaluation Report</title>
+<style>
+  :root { --primary:#006fcf; --navy:#00175a; --ink:#1a1a1a; --muted:#53565a;
+    --subdued:#86888c; --surface:#f7f8f9; --canvas:#fff; --border:#d5d9dc;
+    --success:#00875a; --error:#c52720; --gold:#bf9b30; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Benton Sans","Helvetica Neue",Arial,sans-serif;
+    color:var(--ink); background:var(--surface); line-height:1.5; }
+  .num { font-variant-numeric:tabular-nums; }
+  header { background:var(--navy); color:#fff; padding:28px 40px; }
+  header h1 { margin:0; font-size:26px; letter-spacing:-0.01em; }
+  header p { margin:4px 0 0; color:#b7c3d9; }
+  main { max-width:1080px; margin:0 auto; padding:32px 40px 64px; }
+  section { background:var(--canvas); border:1px solid var(--border);
+    border-radius:12px; padding:24px 28px; margin-bottom:22px;
+    box-shadow:0 1px 4px rgba(0,23,90,0.08); }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--muted); margin:0 0 16px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px; }
+  .stat { background:var(--surface); border-radius:8px; padding:16px;
+    border-left:3px solid var(--primary); }
+  .stat.good { border-left-color:var(--success); }
+  .stat.warn { border-left-color:var(--gold); }
+  .stat-val { font-size:26px; font-weight:600; }
+  .stat-label { font-size:13px; color:var(--muted); margin-top:2px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+  @media (max-width:760px) { .cols { grid-template-columns:1fr; } }
+  .bar-row { display:flex; align-items:center; gap:10px; margin-bottom:7px;
+    font-size:13px; }
+  .bar-label { width:64px; color:var(--muted); }
+  .bar-track { flex:1; height:14px; background:var(--surface);
+    border-radius:7px; overflow:hidden; }
+  .bar-fill { display:block; height:100%; border-radius:7px; }
+  .bar-val { width:52px; text-align:right; font-weight:600; }
+  .cov-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .cov-a { width:56px; color:var(--muted); font-size:13px; }
+  .cov-bars { flex:1; position:relative; height:26px; }
+  .cov-target, .cov-emp { position:absolute; top:0; height:11px; border-radius:6px;
+    display:flex; align-items:center; }
+  .cov-target { background:#c9d6e8; top:0; }
+  .cov-emp { background:var(--primary); top:14px; }
+  .cov-tick { font-size:10px; color:var(--ink); padding-left:6px; }
+  .cov-emp .cov-tick { color:#fff; }
+  .cov-flag { width:52px; font-size:11px; font-weight:700; text-align:right; }
+  .cov-flag.ok { color:var(--success); }
+  .cov-flag.bad { color:var(--error); }
+  .reliability { width:100%; max-width:300px; }
+  .axis { font-size:11px; fill:var(--subdued); }
+  .verdict-banner { display:flex; align-items:center; gap:12px; padding:14px 18px;
+    border-radius:8px; font-weight:600; margin-bottom:22px; }
+  .verdict-banner.pass { background:#e3f2ec; color:var(--success); }
+  .verdict-banner.fail { background:#fbe9e8; color:var(--error); }
+  .fair-line { display:flex; justify-content:space-between; padding:9px 0;
+    border-bottom:1px solid #eceded; font-size:14px; }
+  .fair-line .tag { font-weight:600; }
+  .fair-line .pass { color:var(--success); }
+  .fair-line .fail { color:var(--error); }
+  .foot { color:var(--subdued); font-size:12px; text-align:center; padding:20px; }
+</style></head>
+<body>
+<header>
+  <h1>ARBITER — Evaluation Report</h1>
+  <p>Closed-loop dispute arbitration · 5,000 synthetic cases · ground-truth
+     comparison</p>
+</header>
+<main>
+  <div class="verdict-banner pass">
+    ✓ All fairness checks pass — even-handed, calibrated, and capped.
+  </div>
+
+  <section>
+    <h2>Headline</h2>
+    <div class="stats">
+      <div class="stat "><div class="stat-val num">88.5%</div><div class="stat-label">agreement (decided)</div></div>
+      <div class="stat good"><div class="stat-val num">73%</div><div class="stat-label">auto-resolved @90%</div></div>
+      <div class="stat good"><div class="stat-val num">0.076</div><div class="stat-label">ECE (calibrated)</div></div>
+      <div class="stat "><div class="stat-val num">12,155/s</div><div class="stat-label">throughput</div></div>
+      <div class="stat "><div class="stat-val num">0.12 ms</div><div class="stat-label">latency p95</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Agreement with ground truth</h2>
+    <div class="cols">
+      <div><h2>by reason code</h2><div class="bar-row"><span class="bar-label">C02</span><span class="bar-track"><span class="bar-fill" style="width:80.9%;background:#006fcf"></span></span><span class="bar-val num">80.9%</span></div><div class="bar-row"><span class="bar-label">C04</span><span class="bar-track"><span class="bar-fill" style="width:89.5%;background:#006fcf"></span></span><span class="bar-val num">89.5%</span></div><div class="bar-row"><span class="bar-label">C05</span><span class="bar-track"><span class="bar-fill" style="width:81.0%;background:#006fcf"></span></span><span class="bar-val num">81.0%</span></div><div class="bar-row"><span class="bar-label">C08</span><span class="bar-track"><span class="bar-fill" style="width:91.3%;background:#006fcf"></span></span><span class="bar-val num">91.3%</span></div><div class="bar-row"><span class="bar-label">C28</span><span class="bar-track"><span class="bar-fill" style="width:95.5%;background:#006fcf"></span></span><span class="bar-val num">95.5%</span></div><div class="bar-row"><span class="bar-label">C31</span><span class="bar-track"><span class="bar-fill" style="width:85.6%;background:#006fcf"></span></span><span class="bar-val num">85.6%</span></div><div class="bar-row"><span class="bar-label">C32</span><span class="bar-track"><span class="bar-fill" style="width:77.1%;background:#006fcf"></span></span><span class="bar-val num">77.1%</span></div><div class="bar-row"><span class="bar-label">F29</span><span class="bar-track"><span class="bar-fill" style="width:96.4%;background:#006fcf"></span></span><span class="bar-val num">96.4%</span></div><div class="bar-row"><span class="bar-label">P05</span><span class="bar-track"><span class="bar-fill" style="width:100.0%;background:#006fcf"></span></span><span class="bar-val num">100.0%</span></div><div class="bar-row"><span class="bar-label">P07</span><span class="bar-track"><span class="bar-fill" style="width:100.0%;background:#006fcf"></span></span><span class="bar-val num">100.0%</span></div><div class="bar-row"><span class="bar-label">P08</span><span class="bar-track"><span class="bar-fill" style="width:82.9%;background:#006fcf"></span></span><span class="bar-val num">82.9%</span></div><div class="bar-row"><span class="bar-label">R13</span><span class="bar-track"><span class="bar-fill" style="width:100.0%;background:#006fcf"></span></span><span class="bar-val num">100.0%</span></div></div>
+      <div><h2>by difficulty</h2><div class="bar-row"><span class="bar-label">easy</span><span class="bar-track"><span class="bar-fill" style="width:93.3%;background:#00175a"></span></span><span class="bar-val num">93.3%</span></div><div class="bar-row"><span class="bar-label">medium</span><span class="bar-track"><span class="bar-fill" style="width:74.0%;background:#00175a"></span></span><span class="bar-val num">74.0%</span></div><div class="bar-row"><span class="bar-label">hard</span><span class="bar-track"><span class="bar-fill" style="width:85.6%;background:#00175a"></span></span><span class="bar-val num">85.6%</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Conformal coverage — the guarantee (held-out)</h2>
+    <div class="cov"><div class="cov-row"><span class="cov-a num">α=0.20</span><span class="cov-bars"><span class="cov-target" style="width:80%"><span class="cov-tick num">80%</span></span><span class="cov-emp" style="width:81%"><span class="cov-tick num">81.2%</span></span></span><span class="cov-flag ok">HOLDS</span></div><div class="cov-row"><span class="cov-a num">α=0.15</span><span class="cov-bars"><span class="cov-target" style="width:85%"><span class="cov-tick num">85%</span></span><span class="cov-emp" style="width:86%"><span class="cov-tick num">85.9%</span></span></span><span class="cov-flag ok">HOLDS</span></div><div class="cov-row"><span class="cov-a num">α=0.10</span><span class="cov-bars"><span class="cov-target" style="width:90%"><span class="cov-tick num">90%</span></span><span class="cov-emp" style="width:90%"><span class="cov-tick num">90.5%</span></span></span><span class="cov-flag ok">HOLDS</span></div><div class="cov-row"><span class="cov-a num">α=0.05</span><span class="cov-bars"><span class="cov-target" style="width:95%"><span class="cov-tick num">95%</span></span><span class="cov-emp" style="width:96%"><span class="cov-tick num">95.5%</span></span></span><span class="cov-flag ok">HOLDS</span></div></div>
+    <p style="color:var(--muted); font-size:13px; margin-top:12px;">
+      Light bar = target coverage (1−α). Solid bar = empirical coverage measured on a
+      held-out split. The promise: auto-resolve a known fraction at a guaranteed
+      coverage, escalate the rest by design.
+    </p>
+  </section>
+
+  <section>
+    <div class="cols">
+      <div>
+        <h2>Calibration — reliability</h2>
+        <svg viewBox="0 0 300 300" class="reliability" role="img"
+      aria-label="Reliability diagram">
+      <rect x="34" y="34" width="232" height="232" fill="none"
+        stroke="#d5d9dc"/>
+      <line x1="34" y1="266" x2="266" y2="34" stroke="#86888c"
+        stroke-dasharray="4 4" stroke-width="1.5"/>
+      <path d="M47.2,255.7 L70.4,235.0 L92.8,157.4 L114.6,94.3 L137.9,58.0 L162.6,117.4 L185.3,149.4 L206.0,164.9 L233.9,48.6 L254.1,51.4" fill="none" stroke="#006fcf" stroke-width="2" opacity="0.5"/><circle cx="47.2" cy="255.7" r="6.1" fill="#006fcf" opacity="0.8"/><circle cx="70.4" cy="235.0" r="6.4" fill="#006fcf" opacity="0.8"/><circle cx="92.8" cy="157.4" r="6.6" fill="#006fcf" opacity="0.8"/><circle cx="114.6" cy="94.3" r="6.1" fill="#006fcf" opacity="0.8"/><circle cx="137.9" cy="58.0" r="5.7" fill="#006fcf" opacity="0.8"/><circle cx="162.6" cy="117.4" r="6.3" fill="#006fcf" opacity="0.8"/><circle cx="185.3" cy="149.4" r="6.3" fill="#006fcf" opacity="0.8"/><circle cx="206.0" cy="164.9" r="6.1" fill="#006fcf" opacity="0.8"/><circle cx="233.9" cy="48.6" r="7.2" fill="#006fcf" opacity="0.8"/><circle cx="254.1" cy="51.4" r="6.7" fill="#006fcf" opacity="0.8"/>
+      <text x="150.0" y="294" text-anchor="middle" class="axis">confidence →</text>
+      <text x="12" y="150.0" text-anchor="middle" transform="rotate(-90 12 150.0)"
+        class="axis">accuracy →</text>
+    </svg>
+        <p style="color:var(--muted); font-size:13px;">
+          ECE 0.081 → 0.076 after temperature scaling
+          (T=1.8584). Dots on the diagonal = well-calibrated.
+        </p>
+      </div>
+      <div>
+        <h2>Fairness</h2>
+        <div class="fair-line"><span class="tag">Counterfactual party-swap</span>
+          <span class="pass">
+          100.0% identity-independent</span></div>
+        <div class="fair-line"><span class="tag">Asymmetry gap (value bands)</span>
+          <span class="pass">
+          5.2%</span></div>
+        <div class="fair-line"><span class="tag">Reputation within cap</span>
+          <span class="pass">
+          0.400 / cap</span></div>
+        <div class="fair-line"><span class="tag">Burden priors symmetric</span>
+          <span class="pass">
+          yes</span></div>
+        <p style="color:var(--muted); font-size:13px; margin-top:14px;">
+          Symmetric evidence (correspondence, receipts) is scored identically no matter
+          which party files it. The burden of proof stays asymmetric by design — that is
+          the statute, not bias.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Generated by <code>python -m arbiter.eval.run</code> · not affiliated with American
+    Express
+  </div>
+</main>
+</body></html>

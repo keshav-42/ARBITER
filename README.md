@@ -161,6 +161,7 @@ Each stage is a commit. Each stage leaves the repo in a runnable state.
 | 6 | **Settlement** | Nash bargaining split + counterfactual "what would flip this" recourse | ✅ |
 | 7 | **Backend** | FastAPI + SQLAlchemy, append-only event log, WebSocket status stream | ✅ |
 | 8 | **UI** | React + Vite, Amex design system, light **and** dark, Evidence Ledger waterfall | ✅ |
+| 9 | **Evaluation** | Fairness audit (counterfactual party-swap), calibration, coverage, latency | ✅ |
 | 4 | **NLP layer** | Zero-shot NLI evidence verifier, reason-code classifier, guide retrieval | ⬜ |
 | 5 | **Conformal** | Split-conformal calibration, abstention routing, temperature scaling | ⬜ |
 | 6 | **Settlement** | Nash bargaining engine + counterfactual recourse ("what would flip this") | ⬜ |
@@ -243,13 +244,34 @@ is provable.
 ## Getting started
 
 ```bash
-# backend
+# backend  (http://localhost:8000)
 pip install -r requirements.txt
-uvicorn backend.app.main:app --reload
+uvicorn backend.main:app --port 8000
 
-# frontend
+# frontend  (http://localhost:5173, proxies to the backend)
 cd frontend && npm install && npm run dev
+
+# evaluation report — the numbers behind the pitch
+python -m arbiter.eval.run --n 5000 --out docs/eval-report
 ```
+
+The offline demo needs no backend: open `http://localhost:5173/?demo=1`.
+
+## Results
+
+Measured on 5,000 synthetic disputes with ground-truth verdicts:
+
+| | |
+|---|---|
+| Agreement with ground truth (decided) | **88.5%** |
+| Auto-resolved at guaranteed 90% coverage | **72.9%** |
+| Conformal coverage | **holds at every α** (81/86/90/95% vs 80/85/90/95%) |
+| Calibration (ECE after temperature) | **0.075** |
+| Counterfactual party-swap fairness | **100% identity-independent** |
+| Reputation contribution | **within its ±0.40 cap** |
+| Throughput / latency | **~12,700 disputes/s · p95 0.11 ms** (single core) |
+
+The full report (`docs/eval-report.html`) is a self-contained page for the deck.
 
 ## Layout
 

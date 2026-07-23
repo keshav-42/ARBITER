@@ -36,6 +36,22 @@ from arbiter.core.statute import evaluate as evaluate_statute
 #: nats -> decibans
 NATS_TO_DECIBANS: float = 10.0 / math.log(10.0)
 
+#: Evidence types whose meaning is symmetric between the parties: either side could
+#: file them with the same force, so their polarity should follow the filer rather than
+#: a fixed lean. A refund-promise email helps whoever produces it. Directional types
+#: (delivery confirmation, photos, AVS) are excluded — who files them cannot change
+#: what they attest. Keeping this list here, beside the lambda logic, so the two stay
+#: in sync; the fairness audit uses the same set to test symmetry.
+FILER_ORIENTED_TYPES: frozenset[EvidenceType] = frozenset(
+    {
+        EvidenceType.EMAIL_THREAD,
+        EvidenceType.CHAT_LOG,
+        EvidenceType.RECEIPT,
+        EvidenceType.INVOICE,
+        EvidenceType.ORDER_CONFIRMATION,
+    }
+)
+
 #: Posterior magnitude below which the case is too close to call on the evidence.
 #: Cases inside this band are candidates for settlement rather than a binary verdict.
 #: Stage 5 replaces this heuristic with a conformal threshold calibrated to a target
@@ -324,7 +340,19 @@ def compute_lambda(evidence: Evidence) -> float:
     if explicit is not None:
         return float(explicit)
 
-    prior = evidence_polarity(evidence.etype) * 1.2
+    # For filer-symmetric types (correspondence, receipts, order records) the type's
+    # default polarity encodes a spurious lean — it assumes the Card Member is the one
+    # filing. Orient it by the actual filer instead, so the same record helps whoever
+    # produced it. Directional types (delivery proof, photos) keep their intrinsic
+    # polarity, since who files them does not change what they mean. This is what makes
+    # the fairness party-swap test exact: a symmetric exhibit's contribution negates
+    # cleanly when the filer flips.
+    if evidence.etype in FILER_ORIENTED_TYPES:
+        magnitude = abs(evidence_polarity(evidence.etype)) or 0.35
+        signed = magnitude if evidence.party is Party.CARD_MEMBER else -magnitude
+        prior = signed * 1.2
+    else:
+        prior = evidence_polarity(evidence.etype) * 1.2
 
     entail, contradict = meta.get("entail"), meta.get("contradict")
     if entail is None or contradict is None:
