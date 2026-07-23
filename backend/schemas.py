@@ -137,7 +137,9 @@ class VerdictOut(BaseModel):
 
     # Customer-facing layer (the technical fields above stay for the "see the math" view)
     plain_reasons: list[dict[str, str]] = Field(default_factory=list)
+    plain_reasoning: list[str] = Field(default_factory=list)
     scale: dict[str, Any] = Field(default_factory=dict)
+    resolution: dict[str, str] = Field(default_factory=dict)
 
 
 class EventOut(BaseModel):

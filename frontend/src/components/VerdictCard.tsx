@@ -40,6 +40,22 @@ export function VerdictCard({ verdict, onCounter }: Props) {
         <ScaleMeter verdict={verdict} />
       </div>
 
+      {verdict.resolution?.headline && (
+        <div className={"resolution " + (verdict.resolution.outcome || "")}>
+          <span className="resolution-mark" aria-hidden="true">
+            {verdict.resolution.outcome === "refund"
+              ? "↩"
+              : verdict.resolution.outcome === "settled"
+                ? "≈"
+                : "✓"}
+          </span>
+          <div>
+            <p className="resolution-head">{verdict.resolution.headline}</p>
+            <p className="resolution-detail">{verdict.resolution.detail}</p>
+          </div>
+        </div>
+      )}
+
       <div className="verdict-reasons">
         <h3 className="mini-title">What decided it</h3>
         <ul className="reasons">
@@ -85,20 +101,24 @@ export function VerdictCard({ verdict, onCounter }: Props) {
         <div className="math">
           <p className="math-burden">{verdict.burden_statement}</p>
           <h4 className="math-title">Evidence ledger</h4>
+          <ul className="reasoning-detail">
+            {(verdict.plain_reasoning?.length ? verdict.plain_reasoning : verdict.reasoning).map(
+              (r, i) => (
+                <li key={i}>{r}</li>
+              ),
+            )}
+          </ul>
+
           <p className="math-explainer">
-            Every factor below carries a signed weight in <em>decibans</em> (a unit for
-            weight of evidence). The bars start from who has to prove what, and each piece
-            of evidence tips the balance. The total is the verdict — you can add it up
-            yourself.
+            For the technically curious: under the hood, every factor carries a signed
+            weight in <em>decibans</em> (a unit for weight of evidence). The balance
+            starts from who has to prove what, and each piece of evidence tips it. The
+            total is the verdict — it adds up.
           </p>
           <Waterfall steps={verdict.waterfall} />
-          <ul className="reasoning-detail">
-            {verdict.reasoning.map((r, i) => (
-              <li key={i}>{r}</li>
-            ))}
-          </ul>
+
           <p className="math-cite">
-            <span className="cite-label">Basis</span>
+            <span className="cite-label">Based on</span>
             {verdict.citation}
           </p>
         </div>

@@ -278,10 +278,17 @@ class ArbiterService:
                 "recourse": record.recourse,
             }
             # Customer-facing layer, derived from the same stored numbers.
-            from backend.plain_language import humanize_reasons, scale_position
+            from backend.plain_language import (
+                humanize_reasons,
+                plain_detailed_reasoning,
+                resolution_line,
+                scale_position,
+            )
 
             result["plain_reasons"] = humanize_reasons(result)
             result["scale"] = scale_position(result)
+            result["resolution"] = resolution_line(result)
+            result["plain_reasoning"] = plain_detailed_reasoning(result)
             return result
 
     def list_disputes(self, limit: int = 50) -> list[dict[str, Any]]:

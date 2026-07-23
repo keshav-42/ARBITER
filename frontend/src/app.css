@@ -37,12 +37,69 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--navy) 8%, transparent), transparent 60%),
-    var(--surface-1);
-}
-.doc.is-ruling {
+  position: relative;
   background: var(--surface-1);
+}
+
+/* A guilloché-style engraved field — the fine concentric line-work of a banknote or a
+   share certificate. It fills the empty document ground on the intake screen without
+   adding a word, and belongs to the Amex world (security engraving), not to fintech
+   decoration. Very low contrast; it recedes entirely behind content and fades on the
+   ruling screen. */
+.doc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background:
+    radial-gradient(140% 90% at 50% -20%, color-mix(in srgb, var(--navy) 10%, transparent), transparent 55%),
+    repeating-radial-gradient(
+      circle at 82% 8%,
+      transparent 0,
+      transparent 13px,
+      color-mix(in srgb, var(--navy) 5%, transparent) 13px,
+      color-mix(in srgb, var(--navy) 5%, transparent) 14px
+    ),
+    repeating-radial-gradient(
+      circle at 12% 88%,
+      transparent 0,
+      transparent 15px,
+      color-mix(in srgb, var(--navy) 4%, transparent) 15px,
+      color-mix(in srgb, var(--navy) 4%, transparent) 16px
+    );
+  transition: opacity var(--dur-base) var(--ease);
+}
+.doc.is-ruling::before {
+  opacity: 0.15;
+}
+:root[data-theme="dark"] .doc::before {
+  opacity: 1;
+  background:
+    radial-gradient(140% 90% at 50% -20%, color-mix(in srgb, #2a4a8f 16%, transparent), transparent 60%),
+    repeating-radial-gradient(
+      circle at 82% 8%,
+      transparent 0,
+      transparent 13px,
+      color-mix(in srgb, #ffffff 3.5%, transparent) 13px,
+      color-mix(in srgb, #ffffff 3.5%, transparent) 14px
+    ),
+    repeating-radial-gradient(
+      circle at 12% 88%,
+      transparent 0,
+      transparent 15px,
+      color-mix(in srgb, #ffffff 3%, transparent) 15px,
+      color-mix(in srgb, #ffffff 3%, transparent) 16px
+    );
+}
+
+/* keep real content above the engraving */
+.masthead,
+.sheet,
+.colophon {
+  position: relative;
+  z-index: 1;
 }
 
 /* ---------------------------------------------------------------- masthead */
@@ -622,6 +679,55 @@
 }
 .scale-phrase.you {
   color: var(--primary);
+}
+
+/* resolution — what actually happens now */
+.resolution {
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-start;
+  margin: var(--s6) var(--s6) 0;
+  padding: var(--s4) var(--s5);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.resolution.refund {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.resolution.settled {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+.resolution-mark {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 17px;
+  background: var(--paper);
+  color: var(--primary);
+  border: 1.5px solid color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.resolution.refund .resolution-mark {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+.resolution.settled .resolution-mark {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+.resolution-head {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 2px 0 var(--s1);
+}
+.resolution-detail {
+  font-size: 14px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 56ch;
 }
 
 /* reasons */

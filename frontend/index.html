@@ -11,6 +11,27 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Set the theme before React mounts, so there is no flash of the wrong theme and
+         no color transition on first paint. Mirrors the logic in src/lib/theme.ts. -->
+    <script>
+      (function () {
+        try {
+          var p = new URLSearchParams(location.search).get("theme");
+          var saved = localStorage.getItem("arbiter-theme");
+          var t =
+            p === "light" || p === "dark"
+              ? p
+              : saved === "light" || saved === "dark"
+                ? saved
+                : matchMedia("(prefers-color-scheme: dark)").matches
+                  ? "dark"
+                  : "light";
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

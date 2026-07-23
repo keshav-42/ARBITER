@@ -110,20 +110,20 @@ export const DEMO_VERDICT: Verdict = {
   },
   plain_reasons: [
     {
-      text: "We verified confirmed delivery to the address on file.",
+      text: "The carrier confirmed the parcel was delivered to your address.",
       side: "merchant",
       strength: "key",
     },
     {
-      text: "There was a signature collected on delivery.",
+      text: "A signature was collected when the parcel was delivered.",
       side: "merchant",
       strength: "key",
     },
-    {
-      text: "There was the customer's description of the problem.",
-      side: "you",
-      strength: "supporting",
-    },
+  ],
+  plain_reasoning: [
+    "The carrier confirmed the parcel was delivered to your address (verified against its source), which weighed strongly in favour of the merchant.",
+    "A signature was collected on delivery (verified), weighing moderately in favour of the merchant.",
+    "Your own description of the problem was noted, but on its own it carried little weight.",
   ],
   scale: {
     position: 9,
@@ -131,6 +131,12 @@ export const DEMO_VERDICT: Verdict = {
     phrase: "Clear-cut",
     winner: "merchant",
     contested: false,
+  },
+  resolution: {
+    outcome: "upheld",
+    headline: "The charge stands",
+    detail:
+      "The evidence supported the merchant, so the charge remains. If you have something new, you can challenge this below and we'll review again.",
   },
 };
 

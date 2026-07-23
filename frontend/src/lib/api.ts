@@ -94,7 +94,15 @@ export interface Verdict {
   settlement: Settlement | null;
   recourse: Recourse | null;
   plain_reasons: PlainReason[];
+  plain_reasoning: string[];
   scale: Scale;
+  resolution: Resolution;
+}
+
+export interface Resolution {
+  outcome: string; // "refund" | "upheld" | "settled"
+  headline: string;
+  detail: string;
 }
 
 export interface PlainReason {

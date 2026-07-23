@@ -12,31 +12,93 @@ from __future__ import annotations
 
 from typing import Any
 
-# Map exhibit types to how a person would describe them, oriented by who they help.
-_EVIDENCE_PHRASE: dict[str, str] = {
-    "delivery_confirmation": "confirmed delivery to the address on file",
-    "signature_proof": "a signature collected on delivery",
-    "carrier_tracking": "carrier tracking for the shipment",
-    "usage_log": "records showing the service was used",
-    "return_tracking": "tracking showing the item was shipped back",
-    "return_receipt": "a receipt for the return shipment",
-    "refund_record": "a refund that was issued",
-    "credit_note": "a credit note that was issued",
-    "photo_of_item": "a photo of the item received",
-    "visual_similarity": "an image comparison with the listing",
-    "product_description": "the product listing",
-    "cancellation_request": "a cancellation request",
-    "email_thread": "an email exchange",
-    "chat_log": "a support chat",
-    "bank_statement": "a bank statement",
-    "cm_narrative": "the customer's description",
-    "merchant_rebuttal": "the merchant's response",
-    "invoice": "the invoice",
-    "receipt": "the receipt",
-    "order_confirmation": "the order confirmation",
-    "auth_log": "the authorisation record",
-    "avs_match": "an address-verification check",
-    "three_ds_result": "a card authentication check",
+# How each exhibit reads as a full plain sentence, written from the point of view of
+# the side it helps. Two forms: `v` when the record was verified against its source,
+# `u` when it was only submitted. Keeping complete sentences (not fragments) is what
+# makes the reasoning read clearly instead of "There was a support chat."
+_EVIDENCE_SENTENCE: dict[str, dict[str, str]] = {
+    "delivery_confirmation": {
+        "v": "The carrier confirmed the parcel was delivered to your address.",
+        "u": "The merchant submitted a delivery confirmation, though it wasn't independently verified.",
+    },
+    "signature_proof": {
+        "v": "A signature was collected when the parcel was delivered.",
+        "u": "The merchant submitted a delivery signature that wasn't independently verified.",
+    },
+    "carrier_tracking": {
+        "v": "Carrier tracking shows the shipment reached its destination.",
+        "u": "The merchant provided tracking that couldn't be fully verified with the carrier.",
+    },
+    "usage_log": {
+        "v": "The account records show the service was actually used.",
+        "u": "The merchant pointed to usage records for the service.",
+    },
+    "return_tracking": {
+        "v": "Tracking confirms you shipped the item back.",
+        "u": "You provided a return shipment that couldn't be fully verified.",
+    },
+    "return_receipt": {
+        "v": "You have a receipt for the return shipment.",
+        "u": "You provided a return receipt.",
+    },
+    "refund_record": {
+        "v": "A refund for this charge was issued and has posted.",
+        "u": "The merchant referenced a refund, though it hadn't clearly posted.",
+    },
+    "credit_note": {
+        "v": "A credit note covering the charge was issued.",
+        "u": "The merchant referenced a credit note.",
+    },
+    "photo_of_item": {
+        "v": "Your photo of the item was consistent with the problem you described.",
+        "u": "You submitted a photo of the item you received.",
+    },
+    "visual_similarity": {
+        "v": "An image check compared what arrived against the listing.",
+        "u": "An image comparison weighed in on how closely the item matched the listing.",
+    },
+    "product_description": {
+        "v": "The product listing matched what was sent.",
+        "u": "The merchant pointed to the product listing.",
+    },
+    "cancellation_request": {
+        "v": "Your cancellation was on record before the charge.",
+        "u": "You provided evidence you had cancelled.",
+    },
+    "email_thread": {
+        "v": "The email exchange supports this account.",
+        "u": "An email exchange was submitted in support.",
+    },
+    "chat_log": {
+        "v": "The support chat supports this account.",
+        "u": "A support chat was submitted in support.",
+    },
+    "bank_statement": {
+        "v": "A bank statement backs up the payment history.",
+        "u": "A bank statement was submitted.",
+    },
+    "merchant_rebuttal": {
+        "v": "The merchant's response addressed the claim.",
+        "u": "The merchant responded to the claim.",
+    },
+    "invoice": {"v": "The invoice matched what was agreed.", "u": "An invoice was submitted."},
+    "receipt": {"v": "The receipt matched what was agreed.", "u": "A receipt was submitted."},
+    "order_confirmation": {
+        "v": "The order confirmation showed the agreed price.",
+        "u": "An order confirmation was submitted.",
+    },
+    "auth_log": {
+        "v": "The authorisation record supports how the charge was made.",
+        "u": "The authorisation record was reviewed.",
+    },
+    "avs_match": {
+        "v": "The billing address matched the one on your account.",
+        "u": "An address-verification check was reviewed.",
+    },
+    "three_ds_result": {
+        "v": "The charge was confirmed with card authentication.",
+        "u": "A card-authentication result was reviewed.",
+    },
 }
 
 
@@ -69,18 +131,22 @@ def humanize_reasons(verdict: dict[str, Any]) -> list[dict[str, str]]:
     )
     for e in entries:
         db = e.get("contribution_decibans", 0)
-        if abs(db) < 0.4:
-            continue
+        # The plain "reasons" list is for evidence that actually mattered. A bare
+        # statement of the complaint (cm_narrative / merchant_rebuttal) carries almost
+        # no weight on its own and reads as filler, so it is excluded here — the
+        # complaint is already the headline of the whole page.
         etype = e.get("evidence_type", "")
-        phrase = _EVIDENCE_PHRASE.get(etype)
-        if not phrase:
+        if etype in ("cm_narrative", "merchant_rebuttal") or abs(db) < 0.5:
+            continue
+        forms = _EVIDENCE_SENTENCE.get(etype)
+        if not forms:
             continue
         side = "you" if db > 0 else "merchant"
         verified = e.get("quality", 0) >= 0.85
-        lead = "There was " if not verified else "We verified "
-        text = f"{lead}{phrase}."
+        text = forms["v"] if verified else forms["u"]
         if e.get("self_defeating"):
-            text = f"The merchant's own {phrase} actually pointed the other way."
+            text = "The merchant's own delivery record actually worked against them."
+            side = "you"
         reasons.append(
             {
                 "text": text,
@@ -175,3 +241,90 @@ def scale_position(verdict: dict[str, Any]) -> dict[str, Any]:
         "winner": winner,
         "contested": winner == "contested",
     }
+
+
+def resolution_line(verdict: dict[str, Any]) -> dict[str, str]:
+    """What actually happens now — the outcome in money terms, not a label.
+
+    A customer's real question is "do I get my money back?". This answers it directly.
+    """
+    winner = verdict.get("verdict")
+    has_settlement = verdict.get("settlement") is not None
+
+    if has_settlement or winner == "contested":
+        return {
+            "outcome": "settled",
+            "headline": "We're proposing a fair split",
+            "detail": "The evidence is genuinely balanced, so rather than pick a loser we "
+            "suggest dividing the amount. You can accept the split or ask a specialist to review.",
+        }
+    if winner == "card_member":
+        return {
+            "outcome": "refund",
+            "headline": "Your money is being returned",
+            "detail": "The charge is reversed and the amount goes back to your account. "
+            "Nothing more is needed from you.",
+        }
+    return {
+        "outcome": "upheld",
+        "headline": "The charge stands",
+        "detail": "The evidence supported the merchant, so the charge remains. If you have "
+        "something new, you can challenge this below and we'll review again.",
+    }
+
+
+# Fragments of the raw engine reasoning we rewrite into plain language for the detail view.
+def plain_detailed_reasoning(verdict: dict[str, Any]) -> list[str]:
+    """Paraphrase the engine's reasoning lines into sentences a person can read.
+
+    The raw lines say things like "Delivery confirmation (merchant, verified)
+    contributes 13.0 decibans toward the Merchant." That is precise but unreadable. Here
+    we translate each into plain language; the decibans themselves stay visible only on
+    the waterfall chart, which is labelled as the technical view.
+    """
+    out: list[str] = []
+    for line in verdict.get("reasoning", []):
+        low = line.lower()
+        if "deciban" in low:
+            # An evidence-weight line: "<Type> (party, verified) contributes N decibans
+            # toward the <Side>." Rebuild it plainly, using our sentence bank so the
+            # exhibit is named in human terms rather than as its raw type slug.
+            side = "you" if "toward the card member" in low else "the merchant"
+            raw_name = line.split("(")[0].strip()
+            etype = raw_name.lower().replace(" ", "_")
+            verified = "verified" in low
+            forms = _EVIDENCE_SENTENCE.get(etype)
+
+            # A bare statement of the complaint or rebuttal is not a decisive factor;
+            # describe it honestly as such rather than "weighing" for a side.
+            if etype in ("cm_narrative", "merchant_rebuttal"):
+                out.append(
+                    "The written account of the dispute was noted, but on its own it "
+                    "carried little weight."
+                )
+                continue
+
+            if forms:
+                sentence = forms["v"] if verified else forms["u"]
+                strength = "strongly" if _num_before(line, "deciban") >= 8 else "moderately"
+                out.append(f"{sentence} This weighed {strength} in favour of {side}.")
+            else:
+                strength = "strongly" if _num_before(line, "deciban") >= 8 else "moderately"
+                out.append(
+                    f"The {raw_name.lower()} weighed {strength} in favour of {side}."
+                )
+        else:
+            # A statute/rule line — already close to plain; just drop the citation.
+            out.append(_soften(line))
+    return out
+
+
+def _num_before(line: str, token: str) -> float:
+    """Best-effort extraction of the number just before a token, for strength wording."""
+    import re
+
+    m = re.search(r"([\d.]+)\s+" + re.escape(token), line)
+    try:
+        return float(m.group(1)) if m else 0.0
+    except ValueError:
+        return 0.0
