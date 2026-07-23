@@ -93,6 +93,36 @@ export interface Verdict {
   waterfall: WaterfallStep[];
   settlement: Settlement | null;
   recourse: Recourse | null;
+  plain_reasons: PlainReason[];
+  scale: Scale;
+}
+
+export interface PlainReason {
+  text: string;
+  side: string; // "you" | "merchant"
+  strength: string; // "key" | "supporting"
+}
+
+export interface Scale {
+  position: number; // 0 = merchant, 100 = you
+  confidence_pct: number;
+  phrase: string;
+  winner: string;
+  contested: boolean;
+}
+
+export interface ParsedDocument {
+  filename: string;
+  evidence_type: string;
+  party: string;
+  verified: boolean;
+  quality: number;
+  extracted: Record<string, unknown>;
+  stages: { label: string; ms: number; detail: string }[];
+  total_ms: number;
+  summary: string;
+  simulated: boolean;
+  evidence: EvidenceIn;
 }
 
 export interface DisputeEvent {
@@ -138,6 +168,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cm_narrative }),
     }).then(j<Classification>),
+
+  parse: (filename: string, size_bytes: number, party?: string) =>
+    fetch("/api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename, size_bytes, party }),
+    }).then(j<ParsedDocument>),
 
   createDispute: (intake: DisputeIntake) =>
     fetch("/api/disputes", {

@@ -255,7 +255,7 @@ class ArbiterService:
                 for e in dispute.evidence
                 if e.contribution_decibans is not None
             ]
-            return {
+            result = {
                 "dispute_id": dispute_id,
                 "reason_code": dispute.reason_code,
                 "verdict": dispute.verdict,
@@ -277,6 +277,12 @@ class ArbiterService:
                 "settlement": record.settlement,
                 "recourse": record.recourse,
             }
+            # Customer-facing layer, derived from the same stored numbers.
+            from backend.plain_language import humanize_reasons, scale_position
+
+            result["plain_reasons"] = humanize_reasons(result)
+            result["scale"] = scale_position(result)
+            return result
 
     def list_disputes(self, limit: int = 50) -> list[dict[str, Any]]:
         with self.db.session() as s:

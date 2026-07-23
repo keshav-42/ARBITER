@@ -35,6 +35,28 @@ class DisputeIntake(BaseModel):
     facts: dict[str, Any] = Field(default_factory=dict)
 
 
+class ParseStageOut(BaseModel):
+    label: str
+    ms: int
+    detail: str = ""
+
+
+class ParsedDocumentOut(BaseModel):
+    """Result of reading an uploaded document into structured evidence."""
+
+    filename: str
+    evidence_type: str
+    party: str
+    verified: bool
+    quality: float
+    extracted: dict[str, Any]
+    stages: list[ParseStageOut]
+    total_ms: int
+    summary: str
+    simulated: bool
+    evidence: EvidenceIn
+
+
 class ClassificationOut(BaseModel):
     reason_code: str
     confidence: float
@@ -112,6 +134,10 @@ class VerdictOut(BaseModel):
     waterfall: list[WaterfallStep]
     settlement: SettlementOut | None = None
     recourse: RecourseOut | None = None
+
+    # Customer-facing layer (the technical fields above stay for the "see the math" view)
+    plain_reasons: list[dict[str, str]] = Field(default_factory=list)
+    scale: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventOut(BaseModel):

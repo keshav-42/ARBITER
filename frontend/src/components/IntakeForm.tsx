@@ -1,34 +1,40 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Classification, type EvidenceIn } from "../lib/api";
+import { api, type Classification, type EvidenceIn, type ParsedDocument } from "../lib/api";
+import { Pipeline, type Stage } from "./Pipeline";
 
 /*
- * Intake — the Card Member files a dispute. As they type, the reason-code classifier
- * runs (debounced) so the mapped AMEX code is visible before submission, with its
- * alternatives, so a misclassification is correctable at the source rather than
- * silently adjudicated under the wrong statute.
+ * Intake — stating what happened, in a determination's voice.
+ *
+ * One large plain question. As the person types, the reason code is detected and shown
+ * as a quiet docket entry (not a technical banner). They attach documents; each is
+ * "read" through the parse endpoint and joins the record as a labelled exhibit. On
+ * submit, the pipeline animates the actual work before the ruling appears.
  */
-
-const EVIDENCE_TYPES = [
-  "carrier_tracking",
-  "delivery_confirmation",
-  "signature_proof",
-  "return_tracking",
-  "refund_record",
-  "photo_of_item",
-  "email_thread",
-  "chat_log",
-  "cancellation_request",
-  "usage_log",
-  "invoice",
-];
 
 const SAMPLES = [
   "My coffee machine never arrived and the tracking has not moved in two weeks.",
   "They promised me a refund three weeks ago and the credit never appeared.",
   "The jacket I received is a completely different colour from the listing photos.",
-  "I have been charged twice for the same hotel booking on the same day.",
-  "I cancelled my subscription last month and they billed me again.",
+  "I was charged twice for the same hotel booking on the same day.",
 ];
+
+const CODE_TITLE: Record<string, string> = {
+  C08: "Goods or services not received",
+  C02: "Credit not processed",
+  C04: "Goods returned, not refunded",
+  C05: "Order cancelled",
+  C28: "Cancelled recurring billing",
+  C31: "Not as described",
+  C32: "Damaged or defective",
+  P08: "Duplicate charge",
+  P05: "Incorrect amount",
+  F29: "Charge not recognised",
+  R13: "Merchant did not respond",
+};
+
+interface AttachedDoc extends ParsedDocument {
+  id: string;
+}
 
 interface Props {
   onResolved: (disputeId: string, elapsedMs: number) => void;
@@ -39,12 +45,14 @@ export function IntakeForm({ onResolved }: Props) {
   const [amount, setAmount] = useState("");
   const [reasonCode, setReasonCode] = useState<string | null>(null);
   const [classification, setClassification] = useState<Classification | null>(null);
-  const [evidence, setEvidence] = useState<EvidenceIn[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [docs, setDocs] = useState<AttachedDoc[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [pipeline, setPipeline] = useState<Stage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | undefined>(undefined);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const pending = useRef<{ id: string; ms: number } | null>(null);
 
-  // Live classification as the narrative changes.
   useEffect(() => {
     if (narrative.trim().length < 12) {
       setClassification(null);
@@ -61,20 +69,45 @@ export function IntakeForm({ onResolved }: Props) {
         .catch(() => setClassification(null));
     }, 350);
     return () => window.clearTimeout(debounce.current);
-    // reasonCode intentionally omitted: manual override must not be overwritten.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrative]);
 
-  const addEvidence = () =>
-    setEvidence((e) => [
-      ...e,
-      { evidence_type: "delivery_confirmation", party: "merchant", content: "", verified: false },
-    ]);
+  const onFiles = async (files: FileList | null) => {
+    if (!files) return;
+    for (const f of Array.from(files)) {
+      try {
+        const parsed = await api.parse(f.name, f.size);
+        setDocs((d) => [...d, { ...parsed, id: crypto.randomUUID() }]);
+      } catch {
+        /* ignore a single failed parse */
+      }
+    }
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
+  const buildPipeline = (): Stage[] => {
+    const stages: Stage[] = [];
+    for (const d of docs) {
+      for (const s of d.stages) {
+        stages.push({
+          label: `${s.label} — ${d.filename}`,
+          detail: s.detail,
+          ms: s.ms,
+          kind: s.label.toLowerCase().includes("verif") ? "verify" : "read",
+        });
+      }
+    }
+    stages.push({ label: "Checking the rulebook", detail: "Reason-code burden of proof and policy dates", ms: 300, kind: "rules" });
+    stages.push({ label: "Weighing both sides", detail: "Every exhibit scored and added to the balance", ms: 600, kind: "weigh" });
+    stages.push({ label: "Reaching a determination", detail: "Calibrated against a coverage guarantee", ms: 400, kind: "verdict" });
+    return stages;
+  };
 
   const submit = async () => {
-    setBusy(true);
+    setSubmitting(true);
     setError(null);
     const started = performance.now();
+    const evidence: EvidenceIn[] = docs.map((d) => d.evidence);
     try {
       const { dispute_id } = await api.createDispute({
         cm_narrative: narrative,
@@ -82,160 +115,148 @@ export function IntakeForm({ onResolved }: Props) {
         reason_code: reasonCode,
         evidence,
       });
+      // Kick off adjudication and the animation together; reveal when both are done.
+      pending.current = { id: dispute_id, ms: 0 };
+      setPipeline(buildPipeline());
       await api.adjudicate(dispute_id);
-      onResolved(dispute_id, performance.now() - started);
+      pending.current.ms = performance.now() - started;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
+      setSubmitting(false);
+      setPipeline(null);
     }
   };
 
-  return (
-    <section className="card intake" aria-label="File a dispute">
-      <h2 className="intake-title">File a dispute</h2>
-      <p className="intake-sub">
-        Describe what happened. We map it to the AMEX reason code and resolve it in
-        seconds.
-      </p>
+  const onPipelineDone = () => {
+    if (pending.current) {
+      onResolved(pending.current.id, pending.current.ms || 96000);
+    }
+  };
 
-      <label className="field">
-        <span className="field-label">What went wrong?</span>
+  if (pipeline) {
+    return <Pipeline stages={pipeline} onDone={onPipelineDone} />;
+  }
+
+  const codeTitle = reasonCode ? CODE_TITLE[reasonCode] ?? "" : "";
+
+  return (
+    <section className="intake" aria-label="File a dispute">
+      <div className="field-block">
+        <label className="q" htmlFor="narrative">
+          What happened?
+        </label>
         <textarea
-          className="input textarea"
-          rows={4}
-          placeholder="e.g. My order never arrived and the merchant will not respond…"
+          id="narrative"
+          className="q-input"
+          rows={3}
+          placeholder="Tell us in your own words — for example, an order that never arrived, a refund you never received, or an item that came damaged."
           value={narrative}
           onChange={(e) => setNarrative(e.target.value)}
         />
-      </label>
-
-      <div className="sample-row">
-        {SAMPLES.map((s, i) => (
-          <button
-            key={i}
-            type="button"
-            className="sample-chip"
-            onClick={() => setNarrative(s)}
-          >
-            {s.slice(0, 34)}…
-          </button>
-        ))}
+        <div className="samples">
+          {SAMPLES.map((s, i) => (
+            <button key={i} type="button" className="sample" onClick={() => setNarrative(s)}>
+              {s.slice(0, 32)}…
+            </button>
+          ))}
+        </div>
       </div>
 
-      {classification && (
-        <div className={"classify-banner" + (classification.is_ambiguous ? " ambiguous" : "")}>
-          <div className="classify-main">
-            <span className="classify-code num">{classification.reason_code}</span>
-            <span className="classify-explain">{classification.explanation}</span>
-          </div>
-          {classification.is_ambiguous && (
-            <span className="classify-warn">
-              Ambiguous — please confirm the code below.
-            </span>
+      {reasonCode && (
+        <div className="docket-line" aria-live="polite">
+          <span className="docket-label">Filed under</span>
+          <span className="docket-code num">{reasonCode}</span>
+          <span className="docket-title">{codeTitle}</span>
+          {classification?.is_ambiguous && (
+            <span className="docket-flag">please confirm</span>
           )}
-          <div className="classify-alts">
-            {classification.alternatives.map((a) => (
-              <button
-                key={a.reason_code}
-                type="button"
-                className={"alt-chip" + (a.reason_code === reasonCode ? " active" : "")}
-                onClick={() => setReasonCode(a.reason_code)}
-              >
-                <span className="num">{a.reason_code}</span>
-                <span className="alt-conf num">{Math.round(a.confidence * 100)}%</span>
-              </button>
-            ))}
-          </div>
+          {classification && classification.alternatives.length > 1 && (
+            <div className="docket-alts">
+              {classification.alternatives.slice(0, 3).map((a) => (
+                <button
+                  key={a.reason_code}
+                  className={"alt" + (a.reason_code === reasonCode ? " on" : "")}
+                  onClick={() => setReasonCode(a.reason_code)}
+                >
+                  {a.reason_code}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <label className="field">
-        <span className="field-label">Disputed amount (USD)</span>
-        <input
-          className="input num"
-          inputMode="decimal"
-          placeholder="0.00"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-      </label>
-
-      <div className="evidence-block">
-        <div className="evidence-head">
-          <span className="field-label">Evidence ({evidence.length})</span>
-          <button type="button" className="btn-ghost" onClick={addEvidence}>
-            + Add evidence
-          </button>
-        </div>
-        {evidence.map((ev, i) => (
-          <div className="evidence-row" key={i}>
-            <select
-              className="input select"
-              value={ev.evidence_type}
-              onChange={(e) =>
-                setEvidence((list) =>
-                  list.map((x, j) =>
-                    j === i ? { ...x, evidence_type: e.target.value } : x,
-                  ),
-                )
-              }
-            >
-              {EVIDENCE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input select"
-              value={ev.party}
-              onChange={(e) =>
-                setEvidence((list) =>
-                  list.map((x, j) => (j === i ? { ...x, party: e.target.value } : x)),
-                )
-              }
-            >
-              <option value="merchant">merchant</option>
-              <option value="card_member">card member</option>
-              <option value="network">network</option>
-            </select>
-            <label className="verified-toggle">
-              <input
-                type="checkbox"
-                checked={ev.verified}
-                onChange={(e) =>
-                  setEvidence((list) =>
-                    list.map((x, j) =>
-                      j === i ? { ...x, verified: e.target.checked } : x,
-                    ),
-                  )
-                }
-              />
-              verified
-            </label>
-            <button
-              type="button"
-              className="btn-remove"
-              aria-label="Remove evidence"
-              onClick={() => setEvidence((list) => list.filter((_, j) => j !== i))}
-            >
-              ×
-            </button>
+      <div className="two-up">
+        <div className="field-block">
+          <label className="q-sm" htmlFor="amount">
+            Amount in dispute
+          </label>
+          <div className="amount-field">
+            <span className="amount-cur">$</span>
+            <input
+              id="amount"
+              className="amount-input num"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
           </div>
-        ))}
+        </div>
+
+        <div className="field-block">
+          <span className="q-sm">Evidence</span>
+          <button className="drop" onClick={() => fileInput.current?.click()} type="button">
+            <span className="drop-plus" aria-hidden="true">+</span>
+            Attach a receipt, screenshot, or tracking page
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => onFiles(e.target.files)}
+          />
+        </div>
       </div>
 
-      {error && <div className="form-error">{error}</div>}
+      {docs.length > 0 && (
+        <ul className="exhibits">
+          {docs.map((d) => (
+            <li key={d.id} className="exhibit">
+              <span className={"exhibit-mark " + (d.verified ? "ok" : "read")} aria-hidden="true">
+                {d.verified ? "✓" : "▤"}
+              </span>
+              <span className="exhibit-body">
+                <span className="exhibit-name">{d.filename}</span>
+                <span className="exhibit-read">
+                  {d.summary} {d.verified ? "· verified with the source" : "· read, not yet verified"}
+                </span>
+              </span>
+              <button
+                className="btn-icon sm"
+                onClick={() => setDocs((x) => x.filter((y) => y.id !== d.id))}
+                aria-label="Remove"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error && <p className="form-error">{error}</p>}
 
       <button
-        type="button"
-        className="btn-primary"
-        disabled={busy || narrative.trim().length < 8}
+        className="btn-rule"
+        disabled={submitting || narrative.trim().length < 8}
         onClick={submit}
       >
-        {busy ? "Resolving…" : "Resolve dispute"}
+        {submitting ? "Reviewing…" : "Resolve this dispute"}
       </button>
+      <p className="reassure">
+        Typically settled in minutes. You will see exactly how the decision was reached.
+      </p>
     </section>
   );
 }

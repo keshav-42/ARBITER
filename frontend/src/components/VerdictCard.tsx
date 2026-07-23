@@ -1,137 +1,108 @@
+import { useState } from "react";
 import type { Verdict } from "../lib/api";
+import { ScaleMeter } from "./ScaleMeter";
 import { Waterfall } from "./Waterfall";
 
 /*
- * The Verdict Card. Assembled entirely from ledger-derived fields the backend already
- * computed — the reasoning list, the citation, the burden statement, and the waterfall
- * are the same numbers that produced the decision. Nothing here is generated prose.
+ * The Verdict Card, customer-first.
+ *
+ * Top: the plain outcome + the scale-of-justice meter. Then the 3–4 things that
+ * mattered, in plain English. Settlement and "counter this" are prominent. The
+ * technical Evidence Ledger (the waterfall, the citation, the burden statement) is
+ * collapsed under "See the detailed reasoning" — there for judges and audit, out of the
+ * way for a customer.
  */
 
 interface Props {
   verdict: Verdict;
+  onCounter?: () => void;
 }
 
-function verdictTone(v: string): "cm" | "merchant" | "contested" {
-  if (v === "card_member") return "cm";
-  if (v === "merchant") return "merchant";
-  return "contested";
+function outcomeLine(v: Verdict): string {
+  if (v.verdict === "card_member") return "Resolved in your favour";
+  if (v.verdict === "merchant") return "Resolved in the merchant's favour";
+  return "Too close to call — a fair split is proposed";
 }
 
-function routeChip(route: string): { label: string; tone: string } {
-  switch (route) {
-    case "auto_resolve":
-      return { label: "Auto-resolved", tone: "success" };
-    case "statute":
-      return { label: "Decided by statute", tone: "navy" };
-    case "settlement":
-      return { label: "Settlement offered", tone: "warning" };
-    case "human_review":
-      return { label: "Escalated to review", tone: "muted" };
-    default:
-      return { label: route, tone: "muted" };
-  }
-}
-
-export function VerdictCard({ verdict }: Props) {
-  const tone = verdictTone(verdict.verdict);
-  const chip = routeChip(verdict.route);
-  const conf = Math.round(verdict.calibrated_confidence * 100);
+export function VerdictCard({ verdict, onCounter }: Props) {
+  const [showMath, setShowMath] = useState(false);
+  const tone =
+    verdict.verdict === "card_member"
+      ? "you"
+      : verdict.verdict === "merchant"
+        ? "merchant"
+        : "even";
 
   return (
-    <section className="card verdict-card" aria-label="Verdict">
-      <header className={"verdict-head " + tone}>
-        <div className="verdict-head-row">
-          <span className={"chip chip-" + chip.tone}>{chip.label}</span>
-          <span className="chip chip-outline num">{verdict.reason_code}</span>
-          {verdict.decided_by_statute && (
-            <span className="chip chip-outline">procedural</span>
-          )}
-        </div>
-        <h2 className="verdict-headline">{verdict.headline}</h2>
-        <div className="verdict-confidence">
-          <div className="confidence-meter" aria-hidden="true">
-            <div className="confidence-fill" style={{ width: `${conf}%` }} />
-          </div>
-          <span className="num confidence-num">{conf}% confidence</span>
-        </div>
-      </header>
-
-      <div className="verdict-burden">{verdict.burden_statement}</div>
-
-      <div className="verdict-section">
-        <h3 className="section-title">Evidence Ledger</h3>
-        <Waterfall steps={verdict.waterfall} />
+    <section className="card verdict" aria-label="Result">
+      <div className={"verdict-top " + tone}>
+        <h2 className="verdict-outcome">{outcomeLine(verdict)}</h2>
+        <ScaleMeter verdict={verdict} />
       </div>
 
-      <div className="verdict-section">
-        <h3 className="section-title">Reasoning</h3>
-        <ul className="reasoning">
-          {verdict.reasoning.map((r, i) => (
-            <li key={i}>{r}</li>
+      <div className="verdict-reasons">
+        <h3 className="mini-title">What decided it</h3>
+        <ul className="reasons">
+          {verdict.plain_reasons.map((r, i) => (
+            <li key={i} className={"reason " + r.side + (r.strength === "key" ? " key" : "")}>
+              <span className={"reason-side " + r.side} aria-hidden="true" />
+              <span className="reason-text">{r.text}</span>
+            </li>
           ))}
         </ul>
       </div>
 
       {verdict.settlement && (
-        <div className="verdict-section settlement">
-          <h3 className="section-title">Proposed settlement</h3>
-          <div className="settlement-split" aria-hidden="true">
-            <div
-              className="settlement-cm num"
-              style={{ width: `${verdict.settlement.card_member_fraction * 100}%` }}
-            >
-              ${verdict.settlement.card_member_share.toFixed(0)}
+        <div className="settlement">
+          <h3 className="mini-title">Suggested fair split</h3>
+          <div className="split-bar" aria-hidden="true">
+            <div className="split-you" style={{ width: `${verdict.settlement.card_member_fraction * 100}%` }}>
+              You ${verdict.settlement.card_member_share.toFixed(0)}
             </div>
-            <div className="settlement-merchant num">
-              ${verdict.settlement.merchant_share.toFixed(0)}
+            <div className="split-merchant">
+              Merchant ${verdict.settlement.merchant_share.toFixed(0)}
             </div>
           </div>
-          <div className="settlement-legend">
-            <span>
-              <i className="dot cm" /> Card Member{" "}
-              {Math.round(verdict.settlement.card_member_fraction * 100)}%
-            </span>
-            <span>
-              <i className="dot merchant" /> Merchant{" "}
-              {Math.round((1 - verdict.settlement.card_member_fraction) * 100)}%
-            </span>
-          </div>
-          <p className="settlement-text">{verdict.settlement.explanation}</p>
-          {verdict.settlement.mutually_beneficial && (
-            <p className="settlement-benefit">
-              ✓ Both parties do better than the expected outcome of a full dispute.
-            </p>
-          )}
+          <p className="settlement-note">
+            The evidence is genuinely balanced, so rather than pick a loser we propose a
+            split. Both sides come out ahead of a drawn-out dispute.
+          </p>
         </div>
       )}
 
-      {verdict.recourse && verdict.recourse.has_path && (
-        <details className="verdict-section recourse">
-          <summary className="section-title">
-            Challenge the verdict
-            <span className="recourse-hint">
-              — what would change this outcome
-            </span>
-          </summary>
-          <p className="recourse-lead">{verdict.recourse.explanation}</p>
-          <ul className="recourse-options">
-            {verdict.recourse.options.map((o, i) => (
-              <li key={i} className={o.sufficient ? "sufficient" : ""}>
-                <span className="recourse-kind">
-                  {o.kind === "provide" ? "Provide" : "Challenge"}
-                </span>
-                {o.description}
-                {o.sufficient && <span className="recourse-flip">would flip</span>}
-              </li>
+      <div className="verdict-actions">
+        {verdict.recourse?.has_path && (
+          <button className="btn-outline" onClick={onCounter}>
+            I disagree — what can I do?
+          </button>
+        )}
+        <button className="btn-text" onClick={() => setShowMath((v) => !v)}>
+          {showMath ? "Hide" : "See"} the detailed reasoning
+        </button>
+      </div>
+
+      {showMath && (
+        <div className="math">
+          <p className="math-burden">{verdict.burden_statement}</p>
+          <h4 className="math-title">Evidence ledger</h4>
+          <p className="math-explainer">
+            Every factor below carries a signed weight in <em>decibans</em> (a unit for
+            weight of evidence). The bars start from who has to prove what, and each piece
+            of evidence tips the balance. The total is the verdict — you can add it up
+            yourself.
+          </p>
+          <Waterfall steps={verdict.waterfall} />
+          <ul className="reasoning-detail">
+            {verdict.reasoning.map((r, i) => (
+              <li key={i}>{r}</li>
             ))}
           </ul>
-        </details>
+          <p className="math-cite">
+            <span className="cite-label">Basis</span>
+            {verdict.citation}
+          </p>
+        </div>
       )}
-
-      <footer className="verdict-cite">
-        <span className="cite-label">Basis</span>
-        {verdict.citation}
-      </footer>
     </section>
   );
 }

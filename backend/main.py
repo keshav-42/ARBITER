@@ -27,11 +27,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from arbiter.calibration.conformal import ConformalCalibrator
 from backend import db
+from backend.parsing import parse_document
 from backend.schemas import (
     ClassificationOut,
     DisputeIntake,
     DisputeStatusOut,
     EvidenceIn,
+    ParsedDocumentOut,
     VerdictOut,
 )
 from backend.service import ArbiterService
@@ -92,6 +94,36 @@ def create_app(service: ArbiterService | None = None) -> FastAPI:
         if not text.strip():
             raise HTTPException(400, "cm_narrative is required")
         return ClassificationOut(**svc().classify_narrative(text))
+
+    @app.post("/api/parse", response_model=ParsedDocumentOut)
+    def parse(payload: dict[str, Any]) -> ParsedDocumentOut:
+        """Read an uploaded document into structured evidence (simulated OCR/layout).
+
+        The client posts the filename, size, and declared party — not the bytes — since
+        the parse is simulated. A real deployment streams the file to an OCR service and
+        returns the same shape.
+        """
+        filename = str(payload.get("filename", "")).strip()
+        if not filename:
+            raise HTTPException(400, "filename is required")
+        parsed = parse_document(
+            filename,
+            size_bytes=int(payload.get("size_bytes", 0) or 0),
+            declared_party=payload.get("party"),
+        )
+        return ParsedDocumentOut(
+            filename=parsed.filename,
+            evidence_type=parsed.evidence_type,
+            party=parsed.party,
+            verified=parsed.verified,
+            quality=parsed.quality,
+            extracted=parsed.extracted,
+            stages=[{"label": s.label, "ms": s.ms, "detail": s.detail} for s in parsed.stages],
+            total_ms=parsed.total_ms,
+            summary=parsed.summary(),
+            simulated=parsed.simulated,
+            evidence=EvidenceIn(**parsed.to_evidence_in()),
+        )
 
     @app.post("/api/disputes")
     def create(intake: DisputeIntake) -> dict[str, str]:

@@ -96,7 +96,7 @@ export const DEMO_VERDICT: Verdict = {
     margin_decibans: 13.5,
     has_path: false,
     explanation:
-      "No single action would fully reverse this outcome for the Card Member. The strongest available step: challenge the authenticity of the opposing delivery confirmation.",
+      "To change this outcome you would need to overcome verified delivery proof — for example, evidence the signature was not yours, or that the address on the delivery record is not where you live.",
     options: [
       {
         party: "card_member",
@@ -104,9 +104,33 @@ export const DEMO_VERDICT: Verdict = {
         evidence_type: null,
         decibans: 13.0,
         sufficient: false,
-        description: "challenge the authenticity of the opposing delivery confirmation",
+        description: "challenge the delivery confirmation",
       },
     ],
+  },
+  plain_reasons: [
+    {
+      text: "We verified confirmed delivery to the address on file.",
+      side: "merchant",
+      strength: "key",
+    },
+    {
+      text: "There was a signature collected on delivery.",
+      side: "merchant",
+      strength: "key",
+    },
+    {
+      text: "There was the customer's description of the problem.",
+      side: "you",
+      strength: "supporting",
+    },
+  ],
+  scale: {
+    position: 9,
+    confidence_pct: 90,
+    phrase: "Clear-cut",
+    winner: "merchant",
+    contested: false,
   },
 };
 

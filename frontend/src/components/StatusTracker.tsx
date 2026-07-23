@@ -1,18 +1,19 @@
 import type { DisputeStatus } from "../lib/api";
 
 /*
- * The live resolution tracker, driven by the immutable event log. Each event is a
- * step; the audit badge proves the trail is intact (contiguous sequences, chained
- * transitions) — transparency the brief asks for, made visible.
+ * The record of proceedings — a docket, not a dashboard widget. Each event is a line in
+ * the determination's own log; the audit line at the foot proves the record is intact
+ * and unaltered. This is the "transparent" the brief asks for, rendered as an official
+ * record rather than a progress ring.
  */
 
 const STEP_LABELS: Record<string, string> = {
-  intake: "Filed",
-  evidence_added: "Evidence added",
-  arbitration_started: "Arbitrating",
-  resolved: "Resolved",
-  settlement_offered: "Settlement offered",
-  escalated: "Escalated",
+  intake: "Dispute filed",
+  evidence_added: "Evidence entered",
+  arbitration_started: "Review opened",
+  resolved: "Determination reached",
+  settlement_offered: "Settlement proposed",
+  escalated: "Referred for review",
 };
 
 interface Props {
@@ -21,52 +22,40 @@ interface Props {
 }
 
 export function StatusTracker({ status, elapsedMs }: Props) {
+  const mins = elapsedMs != null ? Math.max(1, Math.round(elapsedMs / 60000)) : null;
+
   return (
-    <section className="card tracker" aria-label="Resolution status">
-      <div className="tracker-head">
-        <h3 className="section-title">Resolution timeline</h3>
-        {status.audit.intact ? (
-          <span className="chip chip-success" title="Event log verified">
-            ✓ audit trail intact
-          </span>
-        ) : (
-          <span className="chip chip-error">audit trail broken</span>
-        )}
+    <section className="record" aria-label="Record of proceedings">
+      <div className="record-head">
+        <h3 className="record-title">Record of proceedings</h3>
+        <span className="record-id num">{status.dispute_id}</span>
       </div>
 
-      <ol className="timeline">
+      <ol className="docket-log">
         {status.events.map((e) => (
-          <li key={e.sequence} className="timeline-item">
-            <span className="timeline-dot" aria-hidden="true" />
-            <div className="timeline-body">
-              <span className="timeline-label">
-                {STEP_LABELS[e.event_type] ?? e.event_type}
-              </span>
-              <span className="timeline-meta num">
-                #{e.sequence} · {e.actor} ·{" "}
-                {new Date(e.ts).toLocaleTimeString()}
-              </span>
-            </div>
+          <li key={e.sequence} className="docket-entry">
+            <span className="docket-seq num">{String(e.sequence).padStart(2, "0")}</span>
+            <span className="docket-event">{STEP_LABELS[e.event_type] ?? e.event_type}</span>
+            <span className="docket-time num">{new Date(e.ts).toLocaleTimeString()}</span>
           </li>
         ))}
       </ol>
 
-      {elapsedMs != null && (
-        <div className="tracker-clock">
-          <div className="clock-compare">
-            <div className="clock-industry">
-              <span className="clock-label">Industry</span>
-              <span className="clock-value num">up to 45 days</span>
-            </div>
-            <div className="clock-arbiter">
-              <span className="clock-label">ARBITER</span>
-              <span className="clock-value num">
-                {(elapsedMs / 1000).toFixed(1)}s
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="record-foot">
+        {status.audit.intact ? (
+          <span className="attest ok">
+            Record verified · {status.audit.event_count} entries · unaltered
+          </span>
+        ) : (
+          <span className="attest bad">Record integrity check failed</span>
+        )}
+        {mins != null && (
+          <span className="turnaround">
+            Resolved in <strong>{mins === 1 ? "under a minute" : `${mins} minutes`}</strong>.
+            The industry standard is up to <strong>45 days</strong>.
+          </span>
+        )}
+      </div>
     </section>
   );
 }
